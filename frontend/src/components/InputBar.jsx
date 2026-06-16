@@ -8,8 +8,10 @@ export default function InputBar({ onSend, isLoading, className, doSummarize, do
   const [jobMode, setJobMode] = useState(null)
   const [jobFilename, setJobFilename] = useState('')
   const [jobExtra, setJobExtra] = useState('')
+  const [jobFileUploading, setJobFileUploading] = useState(false)
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
+  const jobFileInputRef = useRef(null)
 
   const clear = () => {
     setText('')
@@ -22,9 +24,9 @@ export default function InputBar({ onSend, isLoading, className, doSummarize, do
 
   const handleSend = useCallback(() => {
     if (jobMode) {
-      if (jobMode === 'summarize') { if (!jobFilename.trim()) return; doSummarize(jobFilename.trim()); clear(); return }
+      if (jobMode === 'summarize') { if (!jobFilename) return; doSummarize(jobFilename); clear(); return }
       if (jobMode === 'write') { if (!jobFilename.trim() || !jobExtra.trim()) return; doWrite(jobFilename.trim(), jobExtra.trim()); clear(); return }
-      if (jobMode === 'rewrite') { if (!jobFilename.trim() || !jobExtra.trim()) return; doRewrite(jobFilename.trim(), jobExtra.trim()); clear(); return }
+      if (jobMode === 'rewrite') { if (!jobFilename || !jobExtra.trim()) return; doRewrite(jobFilename, jobExtra.trim()); clear(); return }
       if (jobMode === 'report') { if (!jobExtra.trim()) return; doReport(jobExtra.trim()); clear(); return }
     }
     const content = [...fileContexts, text].join('\n\n').trim()
@@ -62,6 +64,20 @@ export default function InputBar({ onSend, isLoading, className, doSummarize, do
     e.target.value = ''
   }
 
+  const handleJobFilePick = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setJobFileUploading(true)
+    try {
+      const result = await uploadFile(file)
+      setJobFilename(result.filename)
+    } catch (err) {
+      console.error('Job file upload failed:', err)
+    }
+    setJobFileUploading(false)
+    e.target.value = ''
+  }
+
   const removeFile = (index) => {
     setAttachedFiles(prev => prev.filter((_, i) => i !== index))
     setFileContexts(prev => prev.filter((_, i) => i !== index))
@@ -86,8 +102,8 @@ export default function InputBar({ onSend, isLoading, className, doSummarize, do
 
   const canSend = jobMode
     ? jobMode === 'report' ? jobExtra.trim()
-      : jobMode === 'summarize' ? jobFilename.trim()
-      : jobFilename.trim() && jobExtra.trim()
+      : jobMode === 'write' ? jobFilename.trim() && jobExtra.trim()
+      : !!jobFilename && (jobMode === 'summarize' ? true : jobExtra.trim())
     : text.trim() || fileContexts.length > 0
 
   const actionLabel = { summarize: 'Summarize', write: 'Save file', rewrite: 'Rewrite', report: 'Generate' }[jobMode] || 'Send'
@@ -105,48 +121,85 @@ export default function InputBar({ onSend, isLoading, className, doSummarize, do
         </div>
       )}
 
-      {jobMode && jobMode !== 'report' && (
+      {/* ── Summarize job form ── */}
+      {jobMode === 'summarize' && (
         <div className="job-form">
           <div className="job-form-row">
-            <span className="job-label">{jobMode === 'summarize' ? 'File' : 'Filename'}</span>
+            <span className="job-label">File</span>
+            {jobFilename ? (
+              <span className="job-file-chosen">
+                <span className="file-chip">📄 {jobFilename}</span>
+                <button className="job-cancel" onClick={() => setJobFilename('')} style={{ marginLeft: 4 }}>x</button>
+              </span>
+            ) : (
+              <button className="action-btn" onClick={() => jobFileInputRef.current?.click()}>
+                {jobFileUploading ? 'uploading...' : 'Choose file from PC'}
+              </button>
+            )}
+            <button className="job-cancel" onClick={() => setJobMode(null)}>x</button>
+          </div>
+          <div className="job-form-hint">Pick a file from your computer to summarize.</div>
+        </div>
+      )}
+
+      {/* ── Write job form ── */}
+      {jobMode === 'write' && (
+        <div className="job-form">
+          <div className="job-form-row">
+            <span className="job-label">Filename</span>
             <input
               className="job-input"
-              placeholder={jobMode === 'write' ? 'myfile.txt' : 'filename.txt'}
+              placeholder="myfile.txt"
               value={jobFilename}
               onChange={e => setJobFilename(e.target.value)}
               autoFocus
             />
             <button className="job-cancel" onClick={() => setJobMode(null)}>x</button>
           </div>
-          {jobMode === 'write' && (
-            <div className="job-form-row">
-              <span className="job-label">Content</span>
-              <textarea
-                className="job-input job-textarea"
-                placeholder="write whatever you want..."
-                value={jobExtra}
-                onChange={e => setJobExtra(e.target.value)}
-                rows={3}
-              />
-            </div>
-          )}
-          {jobMode === 'rewrite' && (
-            <div className="job-form-row">
-              <span className="job-label">Changes</span>
-              <textarea
-                className="job-input job-textarea"
-                placeholder="what to change..."
-                value={jobExtra}
-                onChange={e => setJobExtra(e.target.value)}
-                rows={2}
-              />
-            </div>
-          )}
-          {jobMode === 'summarize' && (
-            <div className="job-form-hint">The file content will be summarized by AI.</div>
-          )}
+          <div className="job-form-row">
+            <span className="job-label">Content</span>
+            <textarea
+              className="job-input job-textarea"
+              placeholder="write whatever you want..."
+              value={jobExtra}
+              onChange={e => setJobExtra(e.target.value)}
+              rows={3}
+            />
+          </div>
         </div>
       )}
+
+      {/* ── Rewrite job form ── */}
+      {jobMode === 'rewrite' && (
+        <div className="job-form">
+          <div className="job-form-row">
+            <span className="job-label">File</span>
+            {jobFilename ? (
+              <span className="job-file-chosen">
+                <span className="file-chip">📄 {jobFilename}</span>
+                <button className="job-cancel" onClick={() => setJobFilename('')} style={{ marginLeft: 4 }}>x</button>
+              </span>
+            ) : (
+              <button className="action-btn" onClick={() => jobFileInputRef.current?.click()}>
+                {jobFileUploading ? 'uploading...' : 'Choose file from PC'}
+              </button>
+            )}
+            <button className="job-cancel" onClick={() => setJobMode(null)}>x</button>
+          </div>
+          <div className="job-form-row">
+            <span className="job-label">Changes</span>
+            <textarea
+              className="job-input job-textarea"
+              placeholder="what to change..."
+              value={jobExtra}
+              onChange={e => setJobExtra(e.target.value)}
+              rows={2}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Report job form ── */}
       {jobMode === 'report' && (
         <div className="job-form">
           <div className="job-form-row">
@@ -162,6 +215,14 @@ export default function InputBar({ onSend, isLoading, className, doSummarize, do
           </div>
         </div>
       )}
+
+      <input
+        ref={jobFileInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        onChange={handleJobFilePick}
+        accept=".txt,.md,.py,.js,.json,.csv,.html,.css,.xml,.docx,.pdf,.png,.jpg,.jpeg,.gif,.zip"
+      />
 
       {!jobMode && (
         <div className="input-row">

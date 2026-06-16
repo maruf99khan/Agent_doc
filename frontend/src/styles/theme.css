@@ -706,6 +706,12 @@ body {
   padding-left: 68px;
 }
 
+.job-file-chosen {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
 /* ── Action Bar ── */
 .action-bar {
   display: flex;
