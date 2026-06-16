@@ -8,8 +8,11 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
-FALLBACK_MODEL = "llama-3.1-8b-instant"
+MODEL_PREFERENCE = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "gemma2-9b-it",
+]
 MAX_TOOL_ROUNDS = 5
 
 TOOL_CALL_RE = re.compile(
@@ -31,7 +34,23 @@ def _get_client():
 
 
 def _get_model():
-    return os.environ.get("GROQ_MODEL", DEFAULT_MODEL)
+    return os.environ.get("GROQ_MODEL", MODEL_PREFERENCE[0])
+
+
+def _try_models(client, messages, model_list, temperature=0.7, max_tokens=4096):
+    errors = []
+    for model in model_list:
+        try:
+            return model, client.chat.completions.create(
+                model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
+            )
+        except Exception as e:
+            err = str(e).lower()
+            if "model_not_available" in err or "does not exist" in err or "decommissioned" in err:
+                errors.append(f"{model}: decommissioned")
+                continue
+            raise
+    raise RuntimeError(f"All models failed: {'; '.join(errors)}")
 
 
 def _build_tools_description(tool_defs: list[dict]) -> str:
@@ -124,11 +143,8 @@ async def chat_stream(
         while tool_rounds < MAX_TOOL_ROUNDS:
             tool_rounds += 1
 
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=4096,
+            model, response = _try_models(
+                client, messages, [model] + [m for m in MODEL_PREFERENCE if m != model]
             )
 
             choice = response.choices[0]
