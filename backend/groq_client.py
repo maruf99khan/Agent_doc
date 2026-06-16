@@ -10,10 +10,15 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
-MODEL_PREFERENCE = [
+MODELS_OPENROUTER = [
     "meta-llama/llama-3.3-70b-instruct",
     "mistralai/mistral-7b-instruct",
     "google/gemma-2-27b-it",
+]
+MODELS_GROQ = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "gemma2-9b-it",
 ]
 MAX_TOOL_ROUNDS = 5
 
@@ -23,24 +28,35 @@ TOOL_CALL_RE = re.compile(
 
 
 def _get_client():
-    api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "API key not set. Set OPENROUTER_API_KEY (https://openrouter.ai/keys) "
-            "or GROQ_API_KEY environment variable."
-        )
-    return OpenAI(
-        base_url=OPENROUTER_BASE,
-        api_key=api_key,
-        default_headers={
-            "HTTP-Referer": "https://github.com/maruf99khan/Agent_doc",
-            "X-Title": "Gonzo AI Agent",
-        },
+    or_key = os.environ.get("OPENROUTER_API_KEY")
+    if or_key:
+        return OpenAI(
+            base_url=OPENROUTER_BASE,
+            api_key=or_key,
+            default_headers={
+                "HTTP-Referer": "https://github.com/maruf99khan/Agent_doc",
+                "X-Title": "Gonzo AI Agent",
+            },
+        ), "openrouter"
+    gq_key = os.environ.get("GROQ_API_KEY")
+    if gq_key:
+        return OpenAI(
+            base_url="https://api.groq.com/openai/v1",
+            api_key=gq_key,
+        ), "groq"
+    raise RuntimeError(
+        "No API key found. Set OPENROUTER_API_KEY (https://openrouter.ai/keys) "
+        "or GROQ_API_KEY (https://console.groq.com/keys)."
     )
 
 
-def _get_model():
-    return os.environ.get("OPENROUTER_MODEL", MODEL_PREFERENCE[0])
+def _get_model(provider):
+    env_model = os.environ.get("OPENROUTER_MODEL") or os.environ.get("GROQ_MODEL")
+    if env_model:
+        return env_model, [env_model]
+    if provider == "openrouter":
+        return MODELS_OPENROUTER[0], MODELS_OPENROUTER
+    return MODELS_GROQ[0], MODELS_GROQ
 
 
 def _try_models(client, messages, model_list, temperature=0.7, max_tokens=4096):
@@ -134,10 +150,12 @@ async def chat_stream(
     model = _get_model()
 
     try:
-        client = _get_client()
+        client, provider = _get_client()
     except RuntimeError as e:
         yield json.dumps({"type": "error", "content": str(e)})
         return
+
+    model, model_list = _get_model(provider)
 
     tool_defs = tool_map.get("definitions", [])
     handle_fn = tool_map.get("handle_tool")
@@ -149,7 +167,7 @@ async def chat_stream(
             tool_rounds += 1
 
             model, response = _try_models(
-                client, messages, [model] + [m for m in MODEL_PREFERENCE if m != model]
+                client, messages, [model] + [m for m in model_list if m != model]
             )
 
             choice = response.choices[0]
