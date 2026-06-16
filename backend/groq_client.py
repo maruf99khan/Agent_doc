@@ -7,7 +7,7 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_MODEL = "mixtral-8x7b-32768"
 FALLBACK_MODEL = "llama-3.1-8b-instant"
 MAX_TOOL_ROUNDS = 5
 
@@ -89,14 +89,27 @@ async def chat_stream(
     try:
         while tool_rounds < MAX_TOOL_ROUNDS:
             tool_rounds += 1
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                tools=tools if tools else None,
-                tool_choice="auto" if tools else None,
-                temperature=0.7,
-                max_tokens=4096,
-            )
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=tools if tools else None,
+                    tool_choice="auto" if tools else None,
+                    temperature=0.7,
+                    max_tokens=4096,
+                )
+            except Exception as api_err:
+                err_str = str(api_err).lower()
+                if "tool_use_failed" in err_str or "tool call validation failed" in err_str:
+                    yield json.dumps({"type": "text", "content": "I tried to use a tool but there was an issue. Let me respond without tools."})
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=0.7,
+                        max_tokens=4096,
+                    )
+                else:
+                    raise
 
             choice = response.choices[0]
             msg = choice.message
