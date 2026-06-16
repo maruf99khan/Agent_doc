@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import logging
 from typing import AsyncGenerator
 
@@ -7,9 +8,13 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "mixtral-8x7b-32768"
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
 FALLBACK_MODEL = "llama-3.1-8b-instant"
 MAX_TOOL_ROUNDS = 5
+
+TOOL_CALL_RE = re.compile(
+    r'^\s*TOOL_CALL:\s*(\{.*?\})\s*$', re.MULTILINE | re.DOTALL
+)
 
 
 def _get_client():
@@ -29,7 +34,39 @@ def _get_model():
     return os.environ.get("GROQ_MODEL", DEFAULT_MODEL)
 
 
-def _build_messages(message: str, history: list[dict], memory_context: str = "") -> list[dict]:
+def _build_tools_description(tool_defs: list[dict]) -> str:
+    lines = ["You have these tools available:"]
+    for t in tool_defs:
+        name = t["name"]
+        desc = t["description"]
+        props = t.get("parameters", {}).get("properties", {})
+        required = t.get("parameters", {}).get("required", [])
+        params_desc = []
+        for pname, pinfo in props.items():
+            req = " (required)" if pname in required else ""
+            pdesc = pinfo.get("description", "")
+            params_desc.append(f"  - {pname}{req}: {pdesc}")
+        params_str = "\n".join(params_desc) if params_desc else "  - (no parameters)"
+        lines.append(f"\n--- {name} ---\n{desc}\nParameters:\n{params_str}")
+    lines.append("""
+
+To call a tool, output ONLY this exact format on its own line (no other text on that line):
+TOOL_CALL: {"tool": "<name>", "args": {<arguments>}}
+
+For example:
+TOOL_CALL: {"tool": "web_search", "args": {"query": "latest AI news 2026"}}
+
+After the tool call line, you can continue with normal text on subsequent lines.
+If you don't need to call a tool, just respond normally.""")
+    return "\n".join(lines)
+
+
+def _build_messages(
+    message: str,
+    history: list[dict],
+    tool_defs: list[dict],
+    memory_context: str = "",
+) -> list[dict]:
     system = (
         "You are Gonzo — a raw, direct AI research and document agent. "
         "Your purpose: research topics, create/edit documents (PDF, DOCX, TXT), "
@@ -42,6 +79,7 @@ def _build_messages(message: str, history: list[dict], memory_context: str = "")
     )
     if memory_context:
         system += f"\n## What I know about the user\n{memory_context}\n"
+    system += "\n" + _build_tools_description(tool_defs)
 
     messages = [{"role": "system", "content": system}]
     for h in history[-20:]:
@@ -51,21 +89,16 @@ def _build_messages(message: str, history: list[dict], memory_context: str = "")
     return messages
 
 
-def _build_tools(tool_defs: list[dict]) -> list[dict]:
-    result = []
-    for t in tool_defs:
-        params = t.get("parameters", {})
-        if "type" not in params:
-            params = {"type": "object", "properties": params.get("properties", {}), **{k: v for k, v in params.items() if k != "properties"}}
-        result.append({
-            "type": "function",
-            "function": {
-                "name": t["name"],
-                "description": t["description"],
-                "parameters": params,
-            }
-        })
-    return result
+def _parse_tool_calls(text: str) -> list[dict]:
+    calls = []
+    for match in TOOL_CALL_RE.finditer(text):
+        try:
+            obj = json.loads(match.group(1))
+            if isinstance(obj, dict) and "tool" in obj and isinstance(obj["tool"], str):
+                calls.append(obj)
+        except (json.JSONDecodeError, ValueError):
+            continue
+    return calls
 
 
 async def chat_stream(
@@ -82,66 +115,54 @@ async def chat_stream(
         yield json.dumps({"type": "error", "content": str(e)})
         return
 
-    messages = _build_messages(message, history, memory_context)
-    tools = _build_tools(tool_map.get("definitions", []))
+    tool_defs = tool_map.get("definitions", [])
+    handle_fn = tool_map.get("handle_tool")
+    messages = _build_messages(message, history, tool_defs, memory_context)
     tool_rounds = 0
 
     try:
         while tool_rounds < MAX_TOOL_ROUNDS:
             tool_rounds += 1
-            try:
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    tools=tools if tools else None,
-                    tool_choice="auto" if tools else None,
-                    temperature=0.7,
-                    max_tokens=4096,
-                )
-            except Exception as api_err:
-                err_str = str(api_err).lower()
-                if "tool_use_failed" in err_str or "tool call validation failed" in err_str:
-                    yield json.dumps({"type": "text", "content": "I tried to use a tool but there was an issue. Let me respond without tools."})
-                    response = client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        temperature=0.7,
-                        max_tokens=4096,
-                    )
-                else:
-                    raise
+
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=4096,
+            )
 
             choice = response.choices[0]
-            msg = choice.message
+            text = (choice.message.content or "").strip()
 
-            if not msg.tool_calls:
-                text = (msg.content or "").strip()
-                if not text:
-                    text = "Hello! I'm Gonzo. How can I help you today?"
+            if not text:
+                text = "Hello! I'm Gonzo. How can I help you today?"
+
+            tool_calls = _parse_tool_calls(text)
+
+            if not tool_calls:
                 yield json.dumps({"type": "text", "content": text})
                 break
 
-            for tc in msg.tool_calls:
-                fn_name = tc.function.name
-                try:
-                    fn_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-                except json.JSONDecodeError:
-                    fn_args = {}
+            clean_text = TOOL_CALL_RE.sub("", text).strip()
+            if clean_text:
+                yield json.dumps({"type": "text", "content": clean_text})
+
+            for tc in tool_calls:
+                fn_name = tc["tool"]
+                fn_args = tc.get("args", {})
 
                 yield json.dumps({"type": "tool_call", "name": fn_name, "args": fn_args})
 
-                handle_fn = tool_map.get("handle_tool")
                 if handle_fn:
                     result_str, created_file = await handle_fn(fn_name, fn_args)
                 else:
                     result_str = json.dumps({"error": "No handler"})
                     created_file = None
 
-                messages.append(msg)
+                messages.append({"role": "assistant", "content": text})
                 messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc.id,
-                    "content": (result_str or "")[:5000],
+                    "role": "user",
+                    "content": f"Tool '{fn_name}' returned:\n{result_str[:5000]}"
                 })
 
                 yield json.dumps({
@@ -163,7 +184,5 @@ async def chat_stream(
             yield json.dumps({"type": "error", "content": f"Model '{model}' unavailable. Check GROQ_MODEL in .env"})
         elif "rate_limit" in err_msg.lower():
             yield json.dumps({"type": "error", "content": "Rate limited by Groq. Wait a moment and retry."})
-        elif "tool_use_failed" in err_msg.lower() or "failed to call a function" in err_msg.lower():
-            yield json.dumps({"type": "error", "content": "The AI tried to use a tool but failed. Try rephrasing your request."})
         else:
             yield json.dumps({"type": "error", "content": f"AI error: {err_msg[:300]}"})

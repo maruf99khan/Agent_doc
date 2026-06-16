@@ -7,7 +7,7 @@ export default function Header({ onClear, onForget }) {
         <div className="gonzo-logo">GONZO</div>
         <span className="status-badge">
           <span className="status-dot" />
-          groq · mixtral
+          groq · llama
         </span>
       </div>
       <div className="header-actions">
