@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+env/
+*.egg-info/
+dist/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Env
+.env
+
+# Workspace files
+backend/workspace/
+workspace/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

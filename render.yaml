@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: gonzo-ai-agent
+    runtime: python
+    region: oregon
+    buildCommand: ./start.sh build
+    startCommand: ./start.sh
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama3-70b-8192
+      - key: PYTHON_VERSION
+        value: 3.12.0
+    healthCheckPath: /api/health
+    autoDeploy: true
