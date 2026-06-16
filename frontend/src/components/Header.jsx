@@ -7,7 +7,7 @@ export default function Header({ onClear, onForget }) {
         <div className="gonzo-logo">Gonzo</div>
         <span className="status-badge">
           <span className="status-dot online" />
-          groq · llama3
+          openrouter · llama
         </span>
       </div>
       <div className="header-actions">

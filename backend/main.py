@@ -28,10 +28,12 @@ os.makedirs(WORKSPACE, exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Gonzo AI Agent starting...")
-    if not os.environ.get("GROQ_API_KEY"):
-        logger.warning("GROQ_API_KEY not set! Create a .env file or set env variable.")
+    if os.environ.get("OPENROUTER_API_KEY"):
+        logger.info("OpenRouter API key found.")
+    elif os.environ.get("GROQ_API_KEY"):
+        logger.info("Groq API key found (fallback).")
     else:
-        logger.info("Groq API key found.")
+        logger.warning("No API key set! Set OPENROUTER_API_KEY in env.")
     yield
     logger.info("Gonzo AI Agent shutting down.")
 
@@ -51,13 +53,13 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health():
-    has_key = bool(os.environ.get("GROQ_API_KEY"))
+    has_key = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GROQ_API_KEY"))
     file_count = len(os.listdir(WORKSPACE)) if os.path.exists(WORKSPACE) else 0
     return {
         "status": "ok",
-        "groq_configured": has_key,
+        "api_configured": has_key,
         "files": file_count,
-        "model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        "model": os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct"),
     }
 
 
