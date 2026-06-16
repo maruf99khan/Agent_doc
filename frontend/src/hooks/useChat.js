@@ -41,7 +41,12 @@ export function useChat() {
     const cmd = parts[0].toLowerCase()
 
     // /summarize <filename>
-    if (cmd === '/summarize' && parts[1]) {
+    if (cmd === '/summarize') {
+      if (!parts[1]) {
+        addMessage('assistant', '⚠ Usage: `/summarize <filename>`\nExample: `/summarize notes.txt`')
+        setIsLoading(false)
+        return
+      }
       const filename = parts.slice(1).join(' ')
       const marker = { role: 'assistant', content: '', id: 'streaming' }
       setMessages(prev => [...prev, marker])
@@ -68,17 +73,23 @@ export function useChat() {
     // /write <filename> | <content>
     if (cmd === '/write') {
       const pipeIdx = trimmed.indexOf('|')
-      if (pipeIdx > 0) {
-        const filename = trimmed.slice(8, pipeIdx).trim()
-        const content = trimmed.slice(pipeIdx + 1).trim()
-        try {
-          const result = await jobWrite(filename, content)
-          addMessage('assistant', `✓ Wrote **${result.file}**`)
-        } catch (err) {
-          addMessage('assistant', `⚠ Write failed: ${err.message}`)
-        }
-      } else {
-        addMessage('assistant', '⚠ Usage: /write &lt;filename&gt; | &lt;content&gt;')
+      if (!parts[1] || pipeIdx < 0) {
+        addMessage('assistant', '⚠ Usage: `/write <filename> | <content>`\nExample: `/write notes.txt | This is the file content`')
+        setIsLoading(false)
+        return
+      }
+      const filename = trimmed.slice(7, pipeIdx).trim()
+      const content = trimmed.slice(pipeIdx + 1).trim()
+      if (!filename || !content) {
+        addMessage('assistant', '⚠ Both filename and content are required.\nUsage: `/write <filename> | <content>`')
+        setIsLoading(false)
+        return
+      }
+      try {
+        const result = await jobWrite(filename, content)
+        addMessage('assistant', `✓ Wrote **${result.file}**`)
+      } catch (err) {
+        addMessage('assistant', `⚠ Write failed: ${err.message}`)
       }
       setIsLoading(false)
       return
@@ -87,29 +98,35 @@ export function useChat() {
     // /rewrite <filename> | <instructions>
     if (cmd === '/rewrite') {
       const pipeIdx = trimmed.indexOf('|')
-      if (pipeIdx > 0) {
-        const filename = trimmed.slice(9, pipeIdx).trim()
-        const instructions = trimmed.slice(pipeIdx + 1).trim()
-        const marker = { role: 'assistant', content: '', id: 'streaming' }
-        setMessages(prev => [...prev, marker])
-        try {
-          const res = await jobRewrite(filename, instructions)
-          let fullContent = ''
-          await readSSEStream(res,
-            (chunk) => {
-              fullContent += chunk
-              setMessages(msgs => msgs.map(m => m.id === 'streaming' ? { ...m, content: fullContent } : m))
-            },
-            (err) => {
-              setMessages(msgs => msgs.map(m => m.id === 'streaming' ? { ...m, content: `⚠ Error: ${err}`, id: Date.now() } : m))
-            }
-          )
-          setMessages(msgs => msgs.map(m => m.id === 'streaming' ? { ...m, id: Date.now() + Math.random() } : m))
-        } catch (err) {
-          setMessages(msgs => msgs.map(m => m.id === 'streaming' ? { ...m, content: `⚠ Error: ${err.message}`, id: Date.now() } : m))
-        }
-      } else {
-        addMessage('assistant', '⚠ Usage: /rewrite &lt;filename&gt; | &lt;instructions&gt;')
+      if (!parts[1] || pipeIdx < 0) {
+        addMessage('assistant', '⚠ Usage: `/rewrite <filename> | <instructions>`\nExample: `/rewrite notes.txt | make this more formal`')
+        setIsLoading(false)
+        return
+      }
+      const filename = trimmed.slice(9, pipeIdx).trim()
+      const instructions = trimmed.slice(pipeIdx + 1).trim()
+      if (!filename || !instructions) {
+        addMessage('assistant', '⚠ Both filename and instructions are required.\nUsage: `/rewrite <filename> | <instructions>`')
+        setIsLoading(false)
+        return
+      }
+      const marker = { role: 'assistant', content: '', id: 'streaming' }
+      setMessages(prev => [...prev, marker])
+      try {
+        const res = await jobRewrite(filename, instructions)
+        let fullContent = ''
+        await readSSEStream(res,
+          (chunk) => {
+            fullContent += chunk
+            setMessages(msgs => msgs.map(m => m.id === 'streaming' ? { ...m, content: fullContent } : m))
+          },
+          (err) => {
+            setMessages(msgs => msgs.map(m => m.id === 'streaming' ? { ...m, content: `⚠ Error: ${err}`, id: Date.now() } : m))
+          }
+        )
+        setMessages(msgs => msgs.map(m => m.id === 'streaming' ? { ...m, id: Date.now() + Math.random() } : m))
+      } catch (err) {
+        setMessages(msgs => msgs.map(m => m.id === 'streaming' ? { ...m, content: `⚠ Error: ${err.message}`, id: Date.now() } : m))
       }
       setIsLoading(false)
       return

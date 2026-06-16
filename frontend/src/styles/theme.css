@@ -254,7 +254,7 @@ body {
 /* ── Messages ── */
 .message-row {
   padding: 0 24px;
-  margin-bottom: 1px;
+  margin-bottom: 6px;
   animation: messageSlide 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -267,7 +267,7 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 18px 0 10px;
+  margin: 20px 0 12px;
   user-select: none;
 }
 
@@ -285,8 +285,9 @@ body {
 .ai-sep .message-sep-line { background: linear-gradient(90deg, transparent, rgba(91,184,240,0.04), transparent); }
 .ai-sep .message-sep-text { color: rgba(91,184,240,0.15); }
 
+/* ── Symmetrical message cards ── */
 .user-msg .msg-content {
-  max-width: 75%;
+  max-width: 80%;
   margin-left: auto;
   text-align: left;
 }
@@ -295,6 +296,10 @@ body {
   color: rgba(91,240,154,0.85);
   font-size: 13px;
   line-height: 1.7;
+  padding: 8px 16px;
+  border: 1px solid rgba(91,240,154,0.04);
+  background: rgba(91,240,154,0.015);
+  border-radius: 12px 4px 12px 12px;
 }
 
 .user-msg .msg-text .prefix {
@@ -303,13 +308,20 @@ body {
   font-weight: 700;
 }
 
-.ai-msg .msg-content { max-width: 92%; }
+.ai-msg .msg-content {
+  max-width: 80%;
+  margin-right: auto;
+}
 
 .ai-msg .msg-body {
   font-family: var(--gonzo-font-serif);
   font-size: 15px;
   line-height: 1.8;
   color: rgba(228,228,240,0.88);
+  padding: 8px 16px;
+  border: 1px solid rgba(255,255,255,0.03);
+  background: rgba(255,255,255,0.015);
+  border-radius: 4px 12px 12px 12px;
 }
 
 .ai-msg .msg-body p { margin-bottom: 14px; }
