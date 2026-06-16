@@ -54,7 +54,7 @@ def _try_models(client, messages, model_list, temperature=0.7, max_tokens=4096):
 
 
 def _build_tools_description(tool_defs: list[dict]) -> str:
-    lines = ["You have these tools available:"]
+    lines = []
     for t in tool_defs:
         name = t["name"]
         desc = t["description"]
@@ -66,17 +66,13 @@ def _build_tools_description(tool_defs: list[dict]) -> str:
             pdesc = pinfo.get("description", "")
             params_desc.append(f"  - {pname}{req}: {pdesc}")
         params_str = "\n".join(params_desc) if params_desc else "  - (no parameters)"
-        lines.append(f"\n--- {name} ---\n{desc}\nParameters:\n{params_str}")
+        lines.append(f"--- {name} ---\n{desc}\nParameters:\n{params_str}")
     lines.append("""
-
-To call a tool, output ONLY this exact format on its own line (no other text on that line):
+To call a file tool, output ONLY this exact format on its own line:
 TOOL_CALL: {"tool": "<name>", "args": {<arguments>}}
 
-For example:
-TOOL_CALL: {"tool": "web_search", "args": {"query": "latest AI news 2026"}}
-
-After the tool call line, you can continue with normal text on subsequent lines.
-If you don't need to call a tool, just respond normally.""")
+Example:
+TOOL_CALL: {"tool": "create_txt", "args": {"content": "...", "name": "notes.txt"}}""")
     return "\n".join(lines)
 
 
@@ -87,18 +83,21 @@ def _build_messages(
     memory_context: str = "",
 ) -> list[dict]:
     system = (
-        "You are Gonzo — a raw, direct AI research and document agent. "
-        "Your purpose: research topics, create/edit documents (PDF, DOCX, TXT), "
-        "analyze uploaded files, gather information from web and file content, and summarize. "
-        "When you search the web or fetch pages, cite sources clearly. "
-        "When you create or write files, tell the user the filename. "
-        "Format responses in Markdown.\n\n"
-        "Rules:\n"
-        "- Be thorough but concise — direct answers, no fluff\n"
+        "You are Gonzo, a conversational AI. You chat naturally like a normal person. "
+        "You can also work with files when the user needs it.\n\n"
+        "Your file abilities:\n"
+        "- Read files and show their content\n"
+        "- Create new files (txt, pdf, docx)\n"
+        "- Write/rewrite content to files\n"
+        "- Analyze and summarize file contents\n"
+        "- List available files\n\n"
+        "When the user asks for file work, use the file tool to do it, then tell them what you did. "
+        "When just chatting, respond naturally. Don't invent tasks — only use tools when the user explicitly asks for file operations.\n"
+        "Format responses in Markdown."
     )
     if memory_context:
-        system += f"\n## What I know about the user\n{memory_context}\n"
-    system += "\n" + _build_tools_description(tool_defs)
+        system += f"\n\n## What I know about the user\n{memory_context}\n"
+    system += "\n\n" + _build_tools_description(tool_defs)
 
     messages = [{"role": "system", "content": system}]
     for h in history[-20:]:
