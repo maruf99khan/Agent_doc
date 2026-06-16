@@ -7,8 +7,8 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "llama3-70b-8192"
-FALLBACK_MODEL = "llama3-8b-8192"
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
+FALLBACK_MODEL = "llama-3.1-8b-instant"
 
 
 def _get_client():

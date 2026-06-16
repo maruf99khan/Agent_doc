@@ -57,7 +57,7 @@ async def health():
         "status": "ok",
         "groq_configured": has_key,
         "files": file_count,
-        "model": os.environ.get("GROQ_MODEL", "llama3-70b-8192"),
+        "model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
     }
 
 
