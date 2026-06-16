@@ -14,16 +14,12 @@ function DownloadBadge({ filename, url }) {
 function ToolStatus({ toolStatus }) {
   if (!toolStatus) return null
   const icons = {
-    web_search: '🌐',
-    fetch_page: '📄',
     create_pdf: '📕',
     create_docx: '📘',
     create_txt: '📄',
     read_file: '📖',
     write_file: '✏️',
-    run_code: '⚙️',
     list_files: '📁',
-    download_file: '⬇️',
   }
   return (
     <div className="tool-status">

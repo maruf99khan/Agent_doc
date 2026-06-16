@@ -17,11 +17,11 @@ export default function ChatView({
   const hasMessages = messages.length > 0
 
   const suggestions = [
-    'search for latest AI news and save as report.pdf',
+    'list my files',
     'summarize the attached file',
-    'create a docx report about web frameworks',
-    'search for Python 3.14 features and save as notes.txt',
-    'write and run a python script that shows system info',
+    'create a pdf report about web frameworks',
+    'read notes.txt and summarize it',
+    'create a docx file with a project overview',
   ]
 
   return (

@@ -1,3 +1,4 @@
+import logging
 from file_service import (
     read_file_content, write_file_content,
     create_pdf, create_docx, create_txt,

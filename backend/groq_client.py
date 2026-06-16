@@ -147,8 +147,6 @@ async def chat_stream(
     tool_map: dict,
     memory_context: str = "",
 ) -> AsyncGenerator[str, None]:
-    model = _get_model()
-
     try:
         client, provider = _get_client()
     except RuntimeError as e:
@@ -220,7 +218,7 @@ async def chat_stream(
         logger.error(f"AI chat failed: {e}", exc_info=True)
         err_msg = str(e)
         if "model_not_available" in err_msg.lower() or "does not exist" in err_msg.lower():
-            yield json.dumps({"type": "error", "content": f"Model '{model}' unavailable. Check OPENROUTER_MODEL env var."})
+            yield json.dumps({"type": "error", "content": f"Model '{model}' unavailable. Check OPENROUTER_MODEL or GROQ_MODEL env var."})
         elif "rate_limit" in err_msg.lower():
             yield json.dumps({"type": "error", "content": "Rate limited. Wait a moment and retry."})
         elif "insufficient_quota" in err_msg.lower() or "403" in err_msg:

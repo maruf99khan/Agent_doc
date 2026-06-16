@@ -14,7 +14,6 @@ from fastapi.staticfiles import StaticFiles
 
 import memory
 import file_service
-from tools import TOOL_DEFINITIONS, TOOL_MAP
 from agent_engine import process_message
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -59,7 +58,7 @@ async def health():
         "status": "ok",
         "api_configured": has_key,
         "files": file_count,
-        "model": os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct"),
+        "model": os.environ.get("OPENROUTER_MODEL") or os.environ.get("GROQ_MODEL") or "meta-llama/llama-3.3-70b-instruct",
     }
 
 
