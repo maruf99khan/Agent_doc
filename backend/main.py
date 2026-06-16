@@ -73,8 +73,13 @@ async def chat_stream_endpoint(
         history_data = []
 
     async def event_stream():
-        async for event in process_message(message, history_data, file_context):
-            yield f"data: {event}\n\n"
+        try:
+            async for event in process_message(message, history_data, file_context):
+                yield f"data: {event}\n\n"
+        except Exception as e:
+            logger.error(f"Stream crashed: {e}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'content': f'Server error: {str(e)[:200]}'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     return StreamingResponse(
         event_stream(),

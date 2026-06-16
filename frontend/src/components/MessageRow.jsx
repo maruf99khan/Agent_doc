@@ -73,11 +73,13 @@ export default function MessageRow({ message, toolStatus, toolResult, fileCreate
           </div>
         ) : (
           <div className="msg-body">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-            >
-              {content}
-            </ReactMarkdown>
+            {content ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {content}
+              </ReactMarkdown>
+            ) : (
+              <span style={{ opacity: 0.3, fontStyle: 'italic' }}>no response</span>
+            )}
           </div>
         )}
       </div>

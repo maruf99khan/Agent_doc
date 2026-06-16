@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 FALLBACK_MODEL = "llama-3.1-8b-instant"
+MAX_TOOL_ROUNDS = 5
 
 
 def _get_client():
@@ -35,7 +36,7 @@ def _build_messages(message: str, history: list[dict], memory_context: str = "")
         "analyze uploaded files, gather information from web and file content, and summarize. "
         "When you search the web or fetch pages, cite sources clearly. "
         "When you create or write files, tell the user the filename. "
-        "Format responses in Markdown for readability.\n\n"
+        "Format responses in Markdown.\n\n"
         "Rules:\n"
         "- Be thorough but concise — direct answers, no fluff\n"
     )
@@ -43,30 +44,28 @@ def _build_messages(message: str, history: list[dict], memory_context: str = "")
         system += f"\n## What I know about the user\n{memory_context}\n"
 
     messages = [{"role": "system", "content": system}]
-
     for h in history[-20:]:
-        role = h.get("role", "user")
-        if role == "assistant":
-            messages.append({"role": "assistant", "content": h.get("content", "")})
-        else:
-            messages.append({"role": "user", "content": h.get("content", "")})
-
+        role = h.get("role", "assistant") if h.get("role") == "assistant" else "user"
+        messages.append({"role": role, "content": h.get("content", "")})
     messages.append({"role": "user", "content": message})
     return messages
 
 
 def _build_tools(tool_defs: list[dict]) -> list[dict]:
-    return [
-        {
+    result = []
+    for t in tool_defs:
+        params = t.get("parameters", {})
+        if "type" not in params:
+            params = {"type": "object", "properties": params.get("properties", {}), **{k: v for k, v in params.items() if k != "properties"}}
+        result.append({
             "type": "function",
             "function": {
                 "name": t["name"],
                 "description": t["description"],
-                "parameters": t.get("parameters", {}),
+                "parameters": params,
             }
-        }
-        for t in tool_defs
-    ]
+        })
+    return result
 
 
 async def chat_stream(
@@ -85,10 +84,11 @@ async def chat_stream(
 
     messages = _build_messages(message, history, memory_context)
     tools = _build_tools(tool_map.get("definitions", []))
+    tool_rounds = 0
 
     try:
-        # Phase 1: Tool-calling loop (non-streaming)
-        while True:
+        while tool_rounds < MAX_TOOL_ROUNDS:
+            tool_rounds += 1
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -101,16 +101,17 @@ async def chat_stream(
             choice = response.choices[0]
             msg = choice.message
 
-            if not tools or not msg.tool_calls:
-                # Phase 2: Stream the final text
-                if msg.content:
-                    yield json.dumps({"type": "text", "content": msg.content})
+            if not msg.tool_calls:
+                text = (msg.content or "").strip()
+                if not text:
+                    text = "Hello! I'm Gonzo. How can I help you today?"
+                yield json.dumps({"type": "text", "content": text})
                 break
 
             for tc in msg.tool_calls:
                 fn_name = tc.function.name
                 try:
-                    fn_args = json.loads(tc.function.arguments)
+                    fn_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
                 except json.JSONDecodeError:
                     fn_args = {}
 
@@ -127,23 +128,29 @@ async def chat_stream(
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
-                    "content": result_str[:5000],
+                    "content": (result_str or "")[:5000],
                 })
 
                 yield json.dumps({
                     "type": "tool_result",
                     "name": fn_name,
-                    "content": result_str[:1500],
+                    "content": (result_str or "")[:1500],
                     "file": created_file,
                 })
+
+        if tool_rounds >= MAX_TOOL_ROUNDS:
+            yield json.dumps({"type": "text", "content": "I've completed all the operations. What would you like to do next?"})
 
         yield json.dumps({"type": "done"})
 
     except Exception as e:
         logger.error(f"Groq chat failed: {e}", exc_info=True)
-        if "model_not_available" in str(e).lower() or "does not exist" in str(e).lower():
+        err_msg = str(e)
+        if "model_not_available" in err_msg.lower() or "does not exist" in err_msg.lower():
             yield json.dumps({"type": "error", "content": f"Model '{model}' unavailable. Check GROQ_MODEL in .env"})
-        elif "rate_limit" in str(e).lower():
+        elif "rate_limit" in err_msg.lower():
             yield json.dumps({"type": "error", "content": "Rate limited by Groq. Wait a moment and retry."})
+        elif "tool_use_failed" in err_msg.lower() or "failed to call a function" in err_msg.lower():
+            yield json.dumps({"type": "error", "content": "The AI tried to use a tool but failed. Try rephrasing your request."})
         else:
-            yield json.dumps({"type": "error", "content": f"AI error: {str(e)}"})
+            yield json.dumps({"type": "error", "content": f"AI error: {err_msg[:300]}"})
