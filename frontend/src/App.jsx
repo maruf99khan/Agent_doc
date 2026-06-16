@@ -32,6 +32,13 @@ export default function App() {
   return (
     <>
       <div className="gradient-bg" />
+      <div className="shapes-container">
+        <div className="shape shape-1" />
+        <div className="shape shape-2" />
+        <div className="shape shape-3" />
+        <div className="shape shape-4" />
+        <div className="shape shape-5" />
+      </div>
       <div className="app-overlay">
         <Header onClear={clearChat} onForget={handleForget} />
         <ChatView
