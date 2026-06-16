@@ -7,8 +7,8 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
-FALLBACK_MODEL = "llama-3.1-8b-instant"
+DEFAULT_MODEL = "llama-3.1-8b-instant"
+FALLBACK_MODEL = "llama-3.3-70b-versatile"
 
 
 def _get_client():
@@ -31,17 +31,13 @@ def _get_model():
 def _build_messages(message: str, history: list[dict], memory_context: str = "") -> list[dict]:
     system = (
         "You are Gonzo — a raw, direct AI research and document agent. "
-        "You have tools for web searching, file operations, code execution, and document creation. "
-        "When you search the web, cite sources. When you create files, tell the user the filename. "
         "Your purpose: research topics, create/edit documents (PDF, DOCX, TXT), "
         "analyze uploaded files, gather information from web and file content, and summarize. "
-        "Communicate in a confident, slightly irreverent tone. Format responses in Markdown.\n\n"
+        "When you search the web or fetch pages, cite sources clearly. "
+        "When you create or write files, tell the user the filename. "
+        "Format responses in Markdown for readability.\n\n"
         "Rules:\n"
-        "- Always use tools when you need real information or to create files\n"
-        "- When asked to create a report or document, ALWAYS do it and say the filename\n"
         "- Be thorough but concise — direct answers, no fluff\n"
-        "- You can execute Python code when needed\n"
-        "- You can read, write, and list files\n"
     )
     if memory_context:
         system += f"\n## What I know about the user\n{memory_context}\n"

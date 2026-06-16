@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm'
 function DownloadBadge({ filename, url }) {
   return (
     <a href={url} className="download-badge" download>
-      <span className="download-icon">↓</span>
+      <span>↓</span>
       {filename}
     </a>
   )
@@ -53,14 +53,16 @@ export default function MessageRow({ message, toolStatus, toolResult, fileCreate
 
   return (
     <div className={`message-row ${isUser ? 'user-msg' : 'ai-msg'}`}>
-      <div className={`message-separator ${isUser ? 'user-sep' : 'ai-sep'}`}>
-        {isUser ? 'you' : 'gonzo'}
+      <div className={`message-sep ${isUser ? 'user-sep' : 'ai-sep'}`}>
+        <span className="message-sep-line" />
+        <span className="message-sep-text">{isUser ? 'you' : 'gonzo'}</span>
+        <span className="message-sep-line" />
       </div>
 
-      <div className="message-content">
+      <div className="msg-content">
         {isUser ? (
-          <div className="msg-prefix">
-            <span>&gt;</span>
+          <div className="msg-text">
+            <span className="prefix">&gt;</span>
             {content}
           </div>
         ) : isLoading && !content ? (
@@ -70,19 +72,13 @@ export default function MessageRow({ message, toolStatus, toolResult, fileCreate
             <span className="typing-dot" />
           </div>
         ) : (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              a: ({ href, children }) => {
-                if (href?.startsWith('/api/')) {
-                  return <a href={href} target="_blank" rel="noopener">{children}</a>
-                }
-                return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
-              }
-            }}
-          >
-            {content}
-          </ReactMarkdown>
+          <div className="msg-body">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+            >
+              {content}
+            </ReactMarkdown>
+          </div>
         )}
       </div>
 
