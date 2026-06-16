@@ -73,20 +73,22 @@ def delete_file(file_id: str) -> bool:
 def create_pdf(content: str, name: str = "report.pdf") -> str:
     try:
         from fpdf import FPDF
-        pdf = FPDF()
+        pdf = FPDF(orientation="P", unit="mm", format="A4")
+        pdf.set_left_margin(20)
+        pdf.set_right_margin(20)
         pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 10, "Report", ln=True, align="C")
-        pdf.ln(5)
-        pdf.set_font("Helvetica", "", 11)
+        pdf.set_auto_page_break(auto=True, margin=20)
+        pdf.set_font("Helvetica", "B", 18)
+        pdf.multi_cell(0, 10, "Report", align="C")
+        pdf.ln(4)
+        pdf.set_font("Helvetica", "", 10)
         for line in content.split('\n'):
             line = line.strip()
             if not line:
-                pdf.ln(3)
+                pdf.ln(2)
                 continue
             safe = line.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 6, safe)
+            pdf.multi_cell(0, 5, safe)
         path = os.path.join(WORKSPACE, name)
         pdf.output(path)
         return name
