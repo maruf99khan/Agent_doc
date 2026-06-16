@@ -28,7 +28,7 @@ export default function ChatView({
     <div className="chat-view">
       {!hasMessages ? (
         <div className="chat-empty">
-          <div className="empty-icon">🌀</div>
+          <div className="big-icon">🌀</div>
           <div className="empty-title">Gonzo Agent</div>
           <div className="empty-sub">ask me anything — research, write, create</div>
           <div className="welcome-hints">

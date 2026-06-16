@@ -20,6 +20,10 @@ export default function App() {
     sendMessage(text, fileContext)
   }, [sendMessage])
 
+  const handleSuggestion = useCallback((suggestion) => {
+    sendMessage(suggestion, '')
+  }, [sendMessage])
+
   const handleForget = useCallback(async () => {
     await forgetMemory()
     clearChat()
@@ -27,7 +31,7 @@ export default function App() {
 
   return (
     <>
-      <div className="app-bg" />
+      <div className="gradient-bg" />
       <div className="app-overlay">
         <Header onClear={clearChat} onForget={handleForget} />
         <ChatView
