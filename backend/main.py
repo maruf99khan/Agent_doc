@@ -104,8 +104,8 @@ async def job_summarize(filename: str = Form(...)):
 
 @app.post("/api/jobs/write")
 async def job_write(filename: str = Form(...), content: str = Form(...)):
-    path = file_service.write_file_content(filename, content)
-    return {"status": "ok", "file": filename, "path": str(path)}
+    file_service.write_file_content(filename, content)
+    return {"status": "ok", "filename": filename, "url": f"/api/files/download/{filename}"}
 
 
 @app.post("/api/jobs/rewrite")
@@ -121,6 +121,45 @@ async def job_rewrite(filename: str = Form(...), instructions: str = Form(defaul
         [],
         "You are a document rewriting assistant. Output only the rewritten document."
     ))
+
+
+@app.post("/api/jobs/report")
+async def job_report(topic: str = Form(...), history: str = Form(default="")):
+    try:
+        history_data = json.loads(history) if isinstance(history, str) and history else []
+    except json.JSONDecodeError:
+        history_data = []
+
+    filename = topic.strip().replace(" ", "_")[:40] + ".md"
+    full_content = [""]
+
+    async def gen():
+        async for event in chat_stream(
+            f"Write a detailed report about: {topic}\n\n"
+            f"Format with markdown headings, bullet points, and sections.",
+            history_data,
+            "You are a report writer. Create comprehensive, well-structured documents."
+        ):
+            data = json.loads(event)
+            if data.get("type") == "text":
+                full_content[0] += data["content"]
+            yield event
+
+        text_content = full_content[0].strip()
+        if text_content:
+            try:
+                file_service.write_file_content(filename, text_content)
+                yield json.dumps({
+                    "type": "file_created",
+                    "filename": filename,
+                    "url": f"/api/files/download/{filename}",
+                })
+            except Exception as e:
+                yield json.dumps({"type": "error", "content": f"Failed to save report: {e}"})
+
+        yield json.dumps({"type": "done"})
+
+    return _stream_response(gen())
 
 
 def _single_error(msg):

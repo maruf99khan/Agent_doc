@@ -10,6 +10,11 @@ export default function App() {
     messages,
     isLoading,
     sendMessage,
+    doSummarize,
+    doWrite,
+    doRewrite,
+    doReport,
+    doListFiles,
     clearChat,
   } = useChat()
 
@@ -39,7 +44,16 @@ export default function App() {
           messages={messages}
           isLoading={isLoading}
         />
-        <InputBar className="floating-card input-bar" onSend={handleSend} isLoading={isLoading} />
+        <InputBar
+          className="floating-card input-bar"
+          onSend={handleSend}
+          isLoading={isLoading}
+          doSummarize={doSummarize}
+          doWrite={doWrite}
+          doRewrite={doRewrite}
+          doReport={doReport}
+          doListFiles={doListFiles}
+        />
       </div>
     </>
   )

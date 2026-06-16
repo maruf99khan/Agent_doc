@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { uploadFile } from '../api/client.js'
 
-export default function InputBar({ onSend, isLoading, className }) {
+export default function InputBar({ onSend, isLoading, className, doSummarize, doWrite, doRewrite, doReport, doListFiles }) {
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState([])
   const [fileContexts, setFileContexts] = useState([])
@@ -22,12 +22,10 @@ export default function InputBar({ onSend, isLoading, className }) {
 
   const handleSend = useCallback(() => {
     if (jobMode) {
-      if (!jobFilename.trim()) return
-      const cmd = `/${jobMode} ${jobFilename.trim()}`
-      const extra = jobExtra.trim()
-      onSend(extra ? `${cmd} | ${extra}` : cmd, '')
-      clear()
-      return
+      if (jobMode === 'summarize') { if (!jobFilename.trim()) return; doSummarize(jobFilename.trim()); clear(); return }
+      if (jobMode === 'write') { if (!jobFilename.trim() || !jobExtra.trim()) return; doWrite(jobFilename.trim(), jobExtra.trim()); clear(); return }
+      if (jobMode === 'rewrite') { if (!jobFilename.trim() || !jobExtra.trim()) return; doRewrite(jobFilename.trim(), jobExtra.trim()); clear(); return }
+      if (jobMode === 'report') { if (!jobExtra.trim()) return; doReport(jobExtra.trim()); clear(); return }
     }
     const content = [...fileContexts, text].join('\n\n').trim()
     if (!content) return
@@ -35,7 +33,7 @@ export default function InputBar({ onSend, isLoading, className }) {
     setText('')
     setAttachedFiles([])
     setFileContexts([])
-  }, [text, fileContexts, onSend, jobMode, jobFilename, jobExtra])
+  }, [text, fileContexts, onSend, jobMode, jobFilename, jobExtra, doSummarize, doWrite, doRewrite, doReport])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -50,7 +48,6 @@ export default function InputBar({ onSend, isLoading, className }) {
       try {
         const result = await uploadFile(file)
         setAttachedFiles(prev => [...prev, { name: file.name, id: result.file_id }])
-
         const ext = file.name.split('.').pop()?.toLowerCase()
         if (['txt', 'md', 'py', 'js', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml'].includes(ext)) {
           const text = await file.text()
@@ -71,6 +68,7 @@ export default function InputBar({ onSend, isLoading, className }) {
   }
 
   const startJob = (mode) => {
+    if (mode === 'list') { doListFiles(); return }
     setJobMode(mode)
     setJobFilename('')
     setJobExtra('')
@@ -87,8 +85,12 @@ export default function InputBar({ onSend, isLoading, className }) {
   }, [])
 
   const canSend = jobMode
-    ? jobFilename.trim()
+    ? jobMode === 'report' ? jobExtra.trim()
+      : jobMode === 'summarize' ? jobFilename.trim()
+      : jobFilename.trim() && jobExtra.trim()
     : text.trim() || fileContexts.length > 0
+
+  const actionLabel = { summarize: 'Summarize', write: 'Save file', rewrite: 'Rewrite', report: 'Generate' }[jobMode] || 'Send'
 
   return (
     <div className={`input-bar ${className || ''}`}>
@@ -103,10 +105,10 @@ export default function InputBar({ onSend, isLoading, className }) {
         </div>
       )}
 
-      {jobMode && (
+      {jobMode && jobMode !== 'report' && (
         <div className="job-form">
           <div className="job-form-row">
-            <span className="job-label">{jobMode === 'summarize' ? 'File' : jobMode === 'write' ? 'Filename' : 'File'}</span>
+            <span className="job-label">{jobMode === 'summarize' ? 'File' : 'Filename'}</span>
             <input
               className="job-input"
               placeholder={jobMode === 'write' ? 'myfile.txt' : 'filename.txt'}
@@ -143,6 +145,21 @@ export default function InputBar({ onSend, isLoading, className }) {
           {jobMode === 'summarize' && (
             <div className="job-form-hint">The file content will be summarized by AI.</div>
           )}
+        </div>
+      )}
+      {jobMode === 'report' && (
+        <div className="job-form">
+          <div className="job-form-row">
+            <span className="job-label">Topic</span>
+            <input
+              className="job-input"
+              placeholder="what should the report be about?"
+              value={jobExtra}
+              onChange={e => setJobExtra(e.target.value)}
+              autoFocus
+            />
+            <button className="job-cancel" onClick={() => setJobMode(null)}>x</button>
+          </div>
         </div>
       )}
 
@@ -187,7 +204,7 @@ export default function InputBar({ onSend, isLoading, className }) {
       {jobMode ? (
         <div className="action-bar" style={{ justifyContent: 'flex-end' }}>
           <button className="action-btn action-primary" onClick={handleSend} disabled={!canSend || isLoading}>
-            {jobMode === 'summarize' ? 'Summarize' : jobMode === 'write' ? 'Save file' : 'Rewrite'}
+            {actionLabel}
           </button>
         </div>
       ) : (
@@ -201,7 +218,10 @@ export default function InputBar({ onSend, isLoading, className }) {
           <button className="action-btn" onClick={() => startJob('rewrite')} disabled={isLoading}>
             <span className="action-icon">🔄</span> Rewrite
           </button>
-          <button className="action-btn" onClick={() => onSend('/list files', '')} disabled={isLoading}>
+          <button className="action-btn" onClick={() => startJob('report')} disabled={isLoading}>
+            <span className="action-icon">📊</span> Report
+          </button>
+          <button className="action-btn" onClick={() => startJob('list')} disabled={isLoading}>
             <span className="action-icon">📁</span> Files
           </button>
         </div>

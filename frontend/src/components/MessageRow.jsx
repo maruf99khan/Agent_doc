@@ -2,6 +2,17 @@ import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+function DownloadBadge({ file }) {
+  if (!file || !file.url) return null
+  return (
+    <a href={file.url} className="download-badge" download>
+      <span className="download-icon">↓</span>
+      <span className="download-name">{file.filename}</span>
+      <span className="download-hint">download</span>
+    </a>
+  )
+}
+
 export default function MessageRow({ message }) {
   const isUser = message.role === 'user'
   const isLoading = message.id === 'streaming'
@@ -36,6 +47,7 @@ export default function MessageRow({ message }) {
             ) : (
               <span style={{ opacity: 0.3, fontStyle: 'italic' }}>no response</span>
             )}
+            <DownloadBadge file={message.file} />
           </div>
         )}
       </div>
