@@ -628,6 +628,84 @@ body {
   box-shadow: 0 0 15px rgba(91,184,240,0.04);
 }
 
+/* ── Job Form ── */
+.job-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  animation: slideUp 0.2s var(--gonzo-ease);
+}
+
+.job-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.15);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.job-input {
+  flex: 1;
+  background: rgba(255,255,255,0.015);
+  border: 1px solid rgba(255,255,255,0.03);
+  color: var(--gonzo-text);
+  font-family: var(--gonzo-font);
+  font-size: 13px;
+  padding: 8px 12px;
+  outline: none;
+  border-radius: 8px;
+  transition: all 0.3s var(--gonzo-ease);
+}
+
+.job-input:focus {
+  border-color: rgba(91,184,240,0.12);
+  background: rgba(255,255,255,0.02);
+}
+
+.job-textarea {
+  resize: vertical;
+  min-height: 40px;
+  line-height: 1.5;
+}
+
+.job-input::placeholder { color: rgba(255,255,255,0.06); }
+
+.job-cancel {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.1);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.job-cancel:hover {
+  color: #f06a6a;
+  border-color: rgba(240,106,106,0.15);
+}
+
+.job-form-hint {
+  font-size: 10px;
+  color: rgba(255,255,255,0.06);
+  font-style: italic;
+  padding-left: 68px;
+}
+
 /* ── Action Bar ── */
 .action-bar {
   display: flex;
@@ -663,6 +741,20 @@ body {
 .action-btn:disabled { opacity: 0.2; cursor: not-allowed; }
 
 .action-icon { font-size: 11px; opacity: 0.5; }
+
+.action-primary {
+  background: rgba(91,184,240,0.04);
+  border-color: rgba(91,184,240,0.08);
+  color: rgba(91,184,240,0.4);
+  font-size: 10px;
+  padding: 6px 18px;
+}
+
+.action-primary:hover {
+  background: rgba(91,184,240,0.07);
+  border-color: rgba(91,184,240,0.15);
+  color: var(--gonzo-accent);
+}
 
 /* ── Media ── */
 @media (max-width: 640px) {
