@@ -1,8 +1,8 @@
 import React from 'react'
 
-export default function Header({ onClear, onForget }) {
+export default function Header({ onClear, onForget, className }) {
   return (
-    <header className="header">
+    <header className={`header ${className || ''}`}>
       <div className="header-left">
         <div className="gonzo-logo">Gonzo</div>
         <span className="status-badge">

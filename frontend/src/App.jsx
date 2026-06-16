@@ -9,19 +9,12 @@ export default function App() {
   const {
     messages,
     isLoading,
-    currentToolStatus,
-    currentToolResult,
-    currentFileCreated,
     sendMessage,
     clearChat,
   } = useChat()
 
   const handleSend = useCallback((text, fileContext) => {
     sendMessage(text, fileContext)
-  }, [sendMessage])
-
-  const handleSuggestion = useCallback((suggestion) => {
-    sendMessage(suggestion, '')
   }, [sendMessage])
 
   const handleForget = useCallback(async () => {
@@ -39,16 +32,14 @@ export default function App() {
         <div className="shape shape-4" />
         <div className="shape shape-5" />
       </div>
-      <div className="app-overlay">
-        <Header onClear={clearChat} onForget={handleForget} />
+      <div className="floating-root">
+        <Header className="floating-card header" onClear={clearChat} onForget={handleForget} />
         <ChatView
+          className="floating-card chat-view"
           messages={messages}
           isLoading={isLoading}
-          currentToolStatus={currentToolStatus}
-          currentToolResult={currentToolResult}
-          currentFileCreated={currentFileCreated}
         />
-        <InputBar onSend={handleSend} isLoading={isLoading} />
+        <InputBar className="floating-card input-bar" onSend={handleSend} isLoading={isLoading} />
       </div>
     </>
   )

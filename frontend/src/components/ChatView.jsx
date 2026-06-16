@@ -4,15 +4,13 @@ import MessageRow from './MessageRow.jsx'
 export default function ChatView({
   messages,
   isLoading,
-  currentToolStatus,
-  currentToolResult,
-  currentFileCreated,
+  className,
 }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, currentToolStatus, currentToolResult])
+  }, [messages])
 
   const hasMessages = messages.length > 0
 
@@ -25,7 +23,7 @@ export default function ChatView({
   ]
 
   return (
-    <div className="chat-view">
+    <div className={`chat-view ${className || ''}`}>
       {!hasMessages ? (
         <div className="chat-empty">
           <div className="big-icon">🌀</div>
@@ -41,13 +39,7 @@ export default function ChatView({
         <>
           {messages.map((msg) => (
             msg.id === 'streaming' ? (
-              <MessageRow
-                key="streaming"
-                message={msg}
-                toolStatus={currentToolStatus}
-                toolResult={currentToolResult}
-                fileCreated={currentFileCreated}
-              />
+              <MessageRow key="streaming" message={msg} />
             ) : (
               <MessageRow key={msg.id} message={msg} />
             )

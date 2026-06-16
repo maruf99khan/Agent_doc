@@ -53,3 +53,33 @@ export function parseSSE(line) {
     return null
   }
 }
+
+// ── Job API ──
+
+export async function jobSummarize(filename) {
+  const form = new FormData()
+  form.append('filename', filename)
+  return fetch(`${API}/jobs/summarize`, { method: 'POST', body: form })
+}
+
+export async function jobWrite(filename, content) {
+  const form = new FormData()
+  form.append('filename', filename)
+  form.append('content', content)
+  const res = await fetch(`${API}/jobs/write`, { method: 'POST', body: form })
+  if (!res.ok) throw new Error('Write failed')
+  return res.json()
+}
+
+export function jobRewrite(filename, instructions = '') {
+  const form = new FormData()
+  form.append('filename', filename)
+  form.append('instructions', instructions)
+  return fetch(`${API}/jobs/rewrite`, { method: 'POST', body: form })
+}
+
+export async function readFile(filename) {
+  const res = await fetch(`${API}/files/read/${encodeURIComponent(filename)}`)
+  if (!res.ok) throw new Error('File not found')
+  return res.json()
+}

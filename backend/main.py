@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 import memory
 import file_service
-from agent_engine import process_message
+from groq_client import chat_stream
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("gonzo")
@@ -48,22 +48,26 @@ app.add_middleware(
 )
 
 
-# ── API Routes ──
+def _stream_response(async_gen):
+    async def event_stream():
+        try:
+            async for event in async_gen:
+                yield f"data: {event}\n\n"
+        except Exception as e:
+            logger.error(f"Stream crashed: {e}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'content': f'Server error: {str(e)[:200]}'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+    )
 
-@app.get("/api/health")
-async def health():
-    has_key = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GROQ_API_KEY"))
-    file_count = len(os.listdir(WORKSPACE)) if os.path.exists(WORKSPACE) else 0
-    return {
-        "status": "ok",
-        "api_configured": has_key,
-        "files": file_count,
-        "model": os.environ.get("OPENROUTER_MODEL") or os.environ.get("GROQ_MODEL") or "meta-llama/llama-3.3-70b-instruct",
-    }
 
+# ── Chat API ──
 
 @app.post("/api/chat/stream")
-async def chat_stream_endpoint(
+async def chat_endpoint(
     message: str = Form(...),
     history: str = Form(default="[]"),
     file_context: str = Form(default=""),
@@ -73,31 +77,75 @@ async def chat_stream_endpoint(
     except json.JSONDecodeError:
         history_data = []
 
-    async def event_stream():
-        try:
-            async for event in process_message(message, history_data, file_context):
-                yield f"data: {event}\n\n"
-        except Exception as e:
-            logger.error(f"Stream crashed: {e}", exc_info=True)
-            yield f"data: {json.dumps({'type': 'error', 'content': f'Server error: {str(e)[:200]}'})}\n\n"
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    full_message = message
+    if file_context:
+        full_message = f"{message}\n\n---\nAttached file contents:\n{file_context}\n---"
 
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    memory.update_last_seen()
+    memory.remember_fact(f"User asked: {message[:200]}")
 
+    return _stream_response(chat_stream(full_message, history_data))
+
+
+# ── Job Endpoints ──
+
+@app.post("/api/jobs/summarize")
+async def job_summarize(filename: str = Form(...)):
+    try:
+        content = file_service.read_file_content(filename)
+    except FileNotFoundError as e:
+        return _stream_response(_single_error(str(e)))
+    return _stream_response(chat_stream(
+        f"Please summarize the following content:\n\n{content[:8000]}",
+        [],
+        "You are a summarization assistant. Provide a clear, concise summary."
+    ))
+
+
+@app.post("/api/jobs/write")
+async def job_write(filename: str = Form(...), content: str = Form(...)):
+    path = file_service.write_file_content(filename, content)
+    return {"status": "ok", "file": filename, "path": str(path)}
+
+
+@app.post("/api/jobs/rewrite")
+async def job_rewrite(filename: str = Form(...), instructions: str = Form(default="")):
+    try:
+        original = file_service.read_file_content(filename)
+    except FileNotFoundError as e:
+        return _stream_response(_single_error(str(e)))
+    return _stream_response(chat_stream(
+        f"Original content of {filename}:\n\n{original[:6000]}\n\n"
+        f"Rewrite instructions: {instructions}\n\n"
+        f"Return ONLY the rewritten content, no extra text.",
+        [],
+        "You are a document rewriting assistant. Output only the rewritten document."
+    ))
+
+
+def _single_error(msg):
+    async def gen():
+        yield json.dumps({"type": "error", "content": msg})
+        yield json.dumps({"type": "done"})
+    return gen()
+
+
+# ── File Endpoints ──
 
 @app.post("/api/files/upload")
 async def upload_file(file: UploadFile = File(...)):
     contents = await file.read()
     result = file_service.save_upload(contents, file.filename)
     return result
+
+
+@app.get("/api/files/read/{filename:path}")
+async def read_file(filename: str):
+    try:
+        content = file_service.read_file_content(filename)
+        return {"filename": filename, "content": content[:50000]}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
 
 
 @app.get("/api/files/download/{filename:path}")
@@ -124,6 +172,8 @@ async def delete_file_endpoint(file_id: str):
     raise HTTPException(status_code=404, detail="File not found")
 
 
+# ── Memory ──
+
 @app.get("/api/memory")
 async def get_memory():
     data = memory.load()
@@ -141,7 +191,7 @@ async def forget_memory():
     return {"status": "memory cleared"}
 
 
-# ── Serve Frontend (production) ──
+# ── Serve Frontend ──
 
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

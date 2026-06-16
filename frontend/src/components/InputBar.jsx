@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
-import { uploadFile } from '../api/client.js'
+import { uploadFile, jobWrite } from '../api/client.js'
 
-export default function InputBar({ onSend, isLoading }) {
+export default function InputBar({ onSend, isLoading, className }) {
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState([])
   const [fileContexts, setFileContexts] = useState([])
@@ -55,13 +55,12 @@ export default function InputBar({ onSend, isLoading }) {
     textareaRef.current?.focus()
   }
 
-  // Expose suggestion handler to parent via global for simplicity
   React.useEffect(() => {
     window.__gonzoSuggestion = handleSuggestion
   }, [])
 
   return (
-    <div className="input-bar">
+    <div className={`input-bar ${className || ''}`}>
       {attachedFiles.length > 0 && (
         <div className="file-attachments">
           {attachedFiles.map((f, i) => (
@@ -111,6 +110,21 @@ export default function InputBar({ onSend, isLoading }) {
           title="Send"
         >
           {isLoading ? '⋯' : '➔'}
+        </button>
+      </div>
+
+      <div className="action-bar">
+        <button className="action-btn" onClick={() => setText(prev => prev + '/summarize ')} disabled={isLoading}>
+          <span className="action-icon">📝</span> Summarize
+        </button>
+        <button className="action-btn" onClick={() => setText(prev => prev + '/write ')} disabled={isLoading}>
+          <span className="action-icon">📄</span> Write
+        </button>
+        <button className="action-btn" onClick={() => setText(prev => prev + '/rewrite ')} disabled={isLoading}>
+          <span className="action-icon">🔄</span> Rewrite
+        </button>
+        <button className="action-btn" onClick={() => setText('/list files')} disabled={isLoading}>
+          <span className="action-icon">📁</span> Files
         </button>
       </div>
     </div>
