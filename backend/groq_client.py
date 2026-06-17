@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import logging
 from typing import AsyncGenerator
 
@@ -75,6 +76,8 @@ TOOLS = [
     },
 ]
 
+_TOOL_NAMES = {t["function"]["name"] for t in TOOLS}
+
 
 def _get_client():
     or_key = os.environ.get("OPENROUTER_API_KEY")
@@ -129,14 +132,18 @@ def _build_messages(message: str, history: list[dict], system_extra: str = "") -
         role = "user" if h.get("role") != "assistant" else "assistant"
         messages.append({"role": role, "content": h.get("content", "")})
     messages.append({"role": "user", "content": message})
+
+    MAX_CHARS = 80000
+    total = sum(len(str(m.get("content", ""))) for m in messages)
+    while total > MAX_CHARS and len(messages) > 2:
+        removed = messages.pop(1)
+        total -= len(str(removed.get("content", "")))
+
     return messages
 
 
-_TOOL_NAMES = {t["function"]["name"] for t in TOOLS}
-
 def _parse_json_tool_call(text: str):
     """Fallback: try to extract a tool call from text that looks like JSON."""
-    import re
     text = text.strip()
     for m in re.finditer(r'\{[^{}]*\}', text, re.DOTALL):
         block = m.group()
@@ -158,7 +165,7 @@ def _parse_json_tool_call(text: str):
     return None, None
 
 
-def _execute_tool(tool_call) -> tuple[str, dict | None]:
+def _execute_tool(tool_call, session_id: str = "default") -> tuple[str, dict | None]:
     func_name = tool_call.function.name
     try:
         args = json.loads(tool_call.function.arguments)
@@ -190,31 +197,31 @@ def _execute_tool(tool_call) -> tuple[str, dict | None]:
         ext = os.path.splitext(filename)[1].lower()
         if ext == ".pdf":
             from file_service import create_pdf
-            create_pdf(content, filename)
+            create_pdf(content, filename, session_id=session_id)
         elif ext == ".docx":
             from file_service import create_docx
-            create_docx(content, filename)
+            create_docx(content, filename, session_id=session_id)
         else:
             from file_service import write_file_content
-            write_file_content(filename, content)
+            write_file_content(filename, content, session_id=session_id)
         return f"File saved: {filename}", {"filename": filename, "url": f"/api/files/download/{filename}"}
 
     if func_name == "read_file":
         from file_service import read_file_content, extract_text, get_file_path
         filename = args["filename"]
-        path = get_file_path(filename)
+        path = get_file_path(filename, session_id=session_id)
         if not path:
             return f"Error: File '{filename}' not found in workspace.", None
         ext = os.path.splitext(filename)[1].lower()
         if ext in ('.pdf', '.docx'):
-            content = extract_text(filename) or "[No extractable text found]"
+            content = extract_text(filename, session_id=session_id) or "[No extractable text found]"
         else:
-            content = read_file_content(filename)
+            content = read_file_content(filename, session_id=session_id)
         return f"--- {filename} ---\n{content}", None
 
     if func_name == "list_files":
         from file_service import list_files
-        files = list_files()
+        files = list_files(session_id=session_id)
         if not files:
             return "No files in workspace.", None
         lines = []
@@ -229,6 +236,7 @@ async def chat_stream(
     message: str,
     history: list[dict],
     system_extra: str = "",
+    session_id: str = "default",
 ) -> AsyncGenerator[str, None]:
     try:
         client, provider = _get_client()
@@ -258,7 +266,15 @@ async def chat_stream(
             if finish == "tool_calls" and msg.tool_calls:
                 messages.append(msg)
                 for tc in msg.tool_calls:
-                    result, file_info = _execute_tool(tc)
+                    tool_name = tc.function.name
+                    try:
+                        t_args = json.loads(tc.function.arguments)
+                    except json.JSONDecodeError:
+                        t_args = {}
+                    detail = t_args.get("query") or t_args.get("filename") or ""
+                    yield json.dumps({"type": "tool_progress", "tool": tool_name, "detail": detail})
+
+                    result, file_info = _execute_tool(tc, session_id=session_id)
                     if file_info:
                         created_files.append(file_info)
                     logger.info(f"Tool {tc.function.name}: {result[:80]}")
@@ -273,7 +289,14 @@ async def chat_stream(
             parsed, _ = _parse_json_tool_call(text)
             if parsed:
                 logger.info(f"Fallback JSON tool: {parsed.function.name}")
-                result, file_info = _execute_tool(parsed)
+                try:
+                    t_args = json.loads(parsed.function.arguments)
+                except json.JSONDecodeError:
+                    t_args = {}
+                detail = t_args.get("query") or t_args.get("filename") or ""
+                yield json.dumps({"type": "tool_progress", "tool": parsed.function.name, "detail": detail})
+
+                result, file_info = _execute_tool(parsed, session_id=session_id)
                 if file_info:
                     created_files.append(file_info)
                 messages.append({
@@ -292,6 +315,7 @@ async def chat_stream(
 
         for f in created_files:
             yield json.dumps({"type": "file_created", **f})
+        yield json.dumps({"type": "warning", "content": "I reached my tool use limit and may not have finished. Try asking again or breaking the task into smaller steps."})
         yield json.dumps({"type": "done"})
 
     except Exception as e:

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -19,9 +19,7 @@ from groq_client import chat_stream
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("gonzo")
 
-WORKSPACE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'workspace')
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'dist')
-os.makedirs(WORKSPACE, exist_ok=True)
 
 
 @asynccontextmanager
@@ -48,6 +46,10 @@ app.add_middleware(
 )
 
 
+def _get_session(request: Request) -> str:
+    return request.headers.get("X-Session-ID", "default")
+
+
 def _stream_response(async_gen):
     async def event_stream():
         try:
@@ -68,10 +70,12 @@ def _stream_response(async_gen):
 
 @app.post("/api/chat/stream")
 async def chat_endpoint(
+    request: Request,
     message: str = Form(...),
     history: str = Form(default="[]"),
     file_context: str = Form(default=""),
 ):
+    session_id = _get_session(request)
     try:
         history_data = json.loads(history) if isinstance(history, str) else history
     except json.JSONDecodeError:
@@ -84,31 +88,34 @@ async def chat_endpoint(
     memory.update_last_seen()
     memory.remember_fact(f"User asked: {message[:200]}")
 
-    return _stream_response(chat_stream(full_message, history_data))
+    return _stream_response(chat_stream(full_message, history_data, session_id=session_id))
 
 
 # ── File Endpoints ──
 
 @app.post("/api/files/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(request: Request, file: UploadFile = File(...)):
+    session_id = _get_session(request)
     contents = await file.read()
-    result = file_service.save_upload(contents, file.filename)
+    result = file_service.save_upload(contents, file.filename, session_id=session_id)
     return result
 
 
 @app.get("/api/files/read/{filename:path}")
-async def read_file(filename: str):
+async def read_file(request: Request, filename: str):
+    session_id = _get_session(request)
     try:
-        content = file_service.read_file_content(filename)
+        content = file_service.read_file_content(filename, session_id=session_id)
         return {"filename": filename, "content": content[:50000]}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
 
 
 @app.get("/api/files/download/{filename:path}")
-async def download_named_file(filename: str):
-    path = os.path.join(WORKSPACE, os.path.basename(filename))
-    if not os.path.exists(path) or not os.path.isfile(path):
+async def download_named_file(request: Request, filename: str):
+    session_id = _get_session(request)
+    path = file_service.get_file_path(os.path.basename(filename), session_id)
+    if not path:
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(
         path=path,
@@ -118,13 +125,15 @@ async def download_named_file(filename: str):
 
 
 @app.get("/api/files/list")
-async def list_files_endpoint():
-    return file_service.list_files()
+async def list_files_endpoint(request: Request):
+    session_id = _get_session(request)
+    return file_service.list_files(session_id=session_id)
 
 
 @app.delete("/api/files/{filename:path}")
-async def delete_file_endpoint(filename: str):
-    if file_service.delete_file(filename):
+async def delete_file_endpoint(request: Request, filename: str):
+    session_id = _get_session(request)
+    if file_service.delete_file(filename, session_id=session_id):
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="File not found")
 
@@ -146,6 +155,13 @@ async def get_memory():
 async def forget_memory():
     memory.forget_all()
     return {"status": "memory cleared"}
+
+
+# ── Health ──
+
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
 
 
 # ── Serve Frontend ──

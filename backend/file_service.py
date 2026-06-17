@@ -1,16 +1,26 @@
 import os
 import uuid
+import re
 from pathlib import Path
 
-WORKSPACE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'workspace')
-os.makedirs(WORKSPACE, exist_ok=True)
+BASE = "/data/workspace"
+os.makedirs(BASE, exist_ok=True)
 
 TEXT_EXTS = {'txt', 'md', 'py', 'js', 'ts', 'jsx', 'tsx', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml', 'ini', 'cfg', 'log', 'sh', 'bat', 'ps1', 'env', 'rst', 'tex', 'c', 'cpp', 'h', 'java', 'rs', 'go', 'rb', 'php', 'swift', 'kt', 'scala', 'sql', 'r', 'lua'}
+HEADING_PATTERN = re.compile(r'^(#{1,3})\s+\w')
+BULLET_PATTERN = re.compile(r'^\s*[-*]\s+\S')
 
 
-def _safe_path(filename: str) -> Path:
-    abs_path = os.path.abspath(os.path.join(WORKSPACE, filename))
-    if not abs_path.startswith(os.path.abspath(WORKSPACE)):
+def get_workspace(session_id: str) -> str:
+    ws = os.path.join(BASE, session_id)
+    os.makedirs(ws, exist_ok=True)
+    return ws
+
+
+def _safe_path(filename: str, session_id: str = "default") -> Path:
+    ws = get_workspace(session_id)
+    abs_path = os.path.abspath(os.path.join(ws, filename))
+    if not abs_path.startswith(os.path.abspath(ws)):
         raise ValueError("Path traversal detected")
     return Path(abs_path)
 
@@ -41,8 +51,8 @@ def _extract_text_from_docx(path: Path) -> str:
         return f"[DOCX extraction error: {e}]"
 
 
-def extract_text(file_path: str) -> str | None:
-    path = _safe_path(file_path)
+def extract_text(file_path: str, session_id: str = "default") -> str | None:
+    path = _safe_path(file_path, session_id)
     if not path.exists():
         return None
     ext = path.suffix.lower().lstrip('.')
@@ -58,14 +68,14 @@ def extract_text(file_path: str) -> str | None:
     return None
 
 
-def save_upload(file_bytes: bytes, original_name: str) -> dict:
+def save_upload(file_bytes: bytes, original_name: str, session_id: str = "default") -> dict:
     safe_name = os.path.basename(original_name)
     if not safe_name:
         safe_name = f"unnamed_{uuid.uuid4()[:8]}"
-    path = _safe_path(safe_name)
+    path = _safe_path(safe_name, session_id)
     path.write_bytes(file_bytes)
     size = len(file_bytes)
-    text = extract_text(safe_name)
+    text = extract_text(safe_name, session_id)
     result = {
         "file_id": safe_name,
         "name": safe_name,
@@ -78,30 +88,31 @@ def save_upload(file_bytes: bytes, original_name: str) -> dict:
     return result
 
 
-def get_file_path(filename: str) -> Path | None:
-    path = _safe_path(filename)
+def get_file_path(filename: str, session_id: str = "default") -> Path | None:
+    path = _safe_path(filename, session_id)
     if path.exists():
         return path
     return None
 
 
-def read_file_content(filename: str) -> str:
-    path = _safe_path(filename)
+def read_file_content(filename: str, session_id: str = "default") -> str:
+    path = _safe_path(filename, session_id)
     if not path.exists():
         raise FileNotFoundError(f"File not found: {filename}")
     return path.read_text(encoding='utf-8')
 
 
-def write_file_content(filename: str, content: str) -> str:
-    path = _safe_path(filename)
+def write_file_content(filename: str, content: str, session_id: str = "default") -> str:
+    path = _safe_path(filename, session_id)
     path.write_text(content, encoding='utf-8')
     return str(path)
 
 
-def list_files() -> list[dict]:
+def list_files(session_id: str = "default") -> list[dict]:
+    ws = get_workspace(session_id)
     files = []
-    for f in sorted(os.listdir(WORKSPACE)):
-        fp = os.path.join(WORKSPACE, f)
+    for f in sorted(os.listdir(ws)):
+        fp = os.path.join(ws, f)
         if os.path.isfile(fp):
             files.append({
                 "name": f,
@@ -111,9 +122,9 @@ def list_files() -> list[dict]:
     return files
 
 
-def delete_file(filename: str) -> bool:
+def delete_file(filename: str, session_id: str = "default") -> bool:
     try:
-        path = _safe_path(filename)
+        path = _safe_path(filename, session_id)
         if path.exists():
             path.unlink()
             return True
@@ -122,18 +133,7 @@ def delete_file(filename: str) -> bool:
     return False
 
 
-def _safe_pdf_line(line: str, max_len: int = 80) -> str:
-    """Break long unbreakable segments so FPDF2 multi_cell doesn't crash."""
-    result = []
-    for word in line.split(' '):
-        while len(word) > max_len:
-            result.append(word[:max_len])
-            word = word[max_len:]
-        result.append(word)
-    return ' '.join(result)
-
-
-def create_pdf(content: str, name: str = "report.pdf") -> str:
+def create_pdf(content: str, name: str = "report.pdf", session_id: str = "default") -> str:
     try:
         from fpdf import FPDF
         pdf = FPDF(orientation="P", unit="mm", format="A4")
@@ -141,58 +141,56 @@ def create_pdf(content: str, name: str = "report.pdf") -> str:
         pdf.set_right_margin(20)
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=20)
-        pdf.set_font("Helvetica", "B", 18)
-        pdf.multi_cell(0, 10, "Report", align="C")
+        pdf.add_font("DejaVu", "", "DejaVuSansCondensed.ttf", uni=True)
+        pdf.set_font("DejaVu", size=11)
+        pdf.multi_cell(0, 8, "Report", align="C")
         pdf.ln(4)
-        pdf.set_font("Helvetica", "", 10)
         for line in content.split('\n'):
             line = line.strip()
             if not line:
                 pdf.ln(2)
                 continue
-            safe = _safe_pdf_line(line).encode('latin-1', 'replace').decode('latin-1')
             try:
-                pdf.multi_cell(0, 5, safe)
-            except RuntimeError as e:
+                pdf.multi_cell(0, 8, line)
+            except RuntimeError:
                 pdf.ln(2)
                 continue
-        path = os.path.join(WORKSPACE, name)
+        path = os.path.join(get_workspace(session_id), name)
         pdf.output(path)
         return name
     except ImportError:
         raise RuntimeError("fpdf2 not installed")
 
 
-def create_docx(content: str, name: str = "report.docx") -> str:
+def create_docx(content: str, name: str = "report.docx", session_id: str = "default") -> str:
     try:
         from docx import Document
         doc = Document()
         doc.add_heading('Report', 0)
+        skip_md = name.lower().endswith(('.py', '.js', '.ts', '.sh', '.html', '.css', '.json'))
         for line in content.split('\n'):
             line = line.strip()
             if not line:
                 continue
-            if line.startswith('**') and line.endswith('**'):
-                doc.add_heading(line.strip('*'), 2)
-            elif line.startswith('- ') or line.startswith('* '):
-                doc.add_paragraph(line[2:], style='List Bullet')
-            elif line.startswith('# '):
-                doc.add_heading(line[2:], 1)
-            elif line.startswith('## '):
-                doc.add_heading(line[2:], 2)
-            elif line.startswith('### '):
-                doc.add_heading(line[3:], 3)
+            if skip_md:
+                doc.add_paragraph(line)
+            elif HEADING_PATTERN.match(line):
+                hashes = len(line.split()[0])
+                doc.add_heading(line.lstrip('# '), hashes)
+            elif BULLET_PATTERN.match(line):
+                doc.add_paragraph(line.lstrip('- ').lstrip('* '), style='List Bullet')
             else:
                 doc.add_paragraph(line)
-        path = os.path.join(WORKSPACE, name)
+        path = os.path.join(get_workspace(session_id), name)
         doc.save(path)
         return name
     except ImportError:
         raise RuntimeError("python-docx not installed")
 
 
-def create_txt(content: str, name: str = "report.txt") -> str:
-    path = os.path.join(WORKSPACE, name)
+def create_txt(content: str, name: str = "report.txt", session_id: str = "default") -> str:
+    ws = get_workspace(session_id)
+    path = os.path.join(ws, name)
     with open(path, 'w', encoding='utf-8') as f:
         f.write(content)
     return name

@@ -3,7 +3,7 @@ import os
 import copy
 from datetime import datetime
 
-MEMORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'workspace', 'memory.json')
+MEMORY_FILE = "/data/memory.json"
 
 DEFAULT = {
     "user": {
