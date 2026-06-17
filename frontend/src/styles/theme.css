@@ -574,6 +574,40 @@ body {
 .welcome-hint:nth-child(4):hover { border-color: rgba(91,240,154,0.10); color: var(--gonzo-green); background: rgba(91,240,154,0.02); }
 .welcome-hint:nth-child(5):hover { border-color: rgba(34,211,238,0.10); color: var(--gonzo-cyan); background: rgba(34,211,238,0.02); }
 
+/* ── Agent Actions ── */
+.agent-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  animation: slideUp 0.2s var(--gonzo-ease);
+}
+
+.agent-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--gonzo-font);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.03);
+  background: rgba(255,255,255,0.015);
+  color: rgba(255,255,255,0.15);
+  transition: all 0.3s var(--gonzo-ease);
+}
+
+.agent-btn:hover { border-color: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.025); }
+.agent-btn:active { transform: scale(0.96); }
+.agent-btn:disabled { opacity: 0.2; cursor: not-allowed; transform: none; }
+.agent-btn:disabled:hover { box-shadow: none; }
+
+.agent-review:hover { border-color: rgba(91,184,240,0.10); color: var(--gonzo-blue); background: rgba(91,184,240,0.02); }
+.agent-summarize:hover { border-color: rgba(69,214,224,0.10); color: var(--gonzo-teal); background: rgba(69,214,224,0.02); }
+.agent-extract:hover { border-color: rgba(154,91,240,0.10); color: var(--gonzo-purple); background: rgba(154,91,240,0.02); }
+
 /* ── Input Bar ── */
 .input-bar {
   padding: 12px 20px 14px;

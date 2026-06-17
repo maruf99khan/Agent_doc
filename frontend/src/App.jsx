@@ -5,7 +5,7 @@ import InputBar from './components/InputBar.jsx'
 import { useChat } from './hooks/useChat.js'
 
 export default function App() {
-  const { messages, isLoading, sendMessage, clearChat } = useChat()
+  const { messages, isLoading, sendMessage, clearChat, addAgentMessage } = useChat()
   const [waking, setWaking] = useState(true)
 
   useEffect(() => {
@@ -23,6 +23,38 @@ export default function App() {
   const handleSend = useCallback((text, fileContext, attachedFiles) => {
     sendMessage(text, fileContext, attachedFiles)
   }, [sendMessage])
+
+  const handleAgentAction = useCallback(async (action, text, extra = {}) => {
+    let endpoint, body
+    if (action === 'check') {
+      endpoint = '/api/agent/check'
+      body = { text }
+    } else if (action === 'summarize') {
+      endpoint = '/api/agent/summarize'
+      body = { text, style: extra.style || 'full' }
+    } else if (action === 'extract') {
+      endpoint = '/api/agent/extract'
+      body = { text, type: extra.type || 'entities', topic: extra.topic || '' }
+    } else {
+      return
+    }
+    addAgentMessage(`⚙️ Running *${action}* agent...`)
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (data.status === 'success') {
+        addAgentMessage(data.result)
+      } else {
+        addAgentMessage(`⚠ Agent error: ${data.error_message}`)
+      }
+    } catch (err) {
+      addAgentMessage(`⚠ Request failed: ${err.message}`)
+    }
+  }, [addAgentMessage])
 
   return (
     <>
@@ -44,7 +76,7 @@ export default function App() {
         )}
         <Header className="floating-card header" onClear={clearChat} />
         <ChatView className="floating-card chat-view" messages={messages} isLoading={isLoading} />
-        <InputBar className="floating-card input-bar" onSend={handleSend} isLoading={isLoading} />
+        <InputBar className="floating-card input-bar" onSend={handleSend} onAgentAction={handleAgentAction} isLoading={isLoading} />
       </div>
     </>
   )

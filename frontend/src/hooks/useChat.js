@@ -94,5 +94,9 @@ export function useChat() {
 
   const clearChat = useCallback(() => setMessages([]), [])
 
-  return { messages, isLoading, sendMessage, clearChat }
+  const addAgentMessage = useCallback((content) => {
+    addMessage('assistant', content)
+  }, [addMessage])
+
+  return { messages, isLoading, sendMessage, clearChat, addAgentMessage }
 }

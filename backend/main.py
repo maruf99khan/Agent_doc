@@ -157,6 +157,47 @@ async def forget_memory():
     return {"status": "memory cleared"}
 
 
+# ── Agent Endpoints (simple prompt-based, no function calling) ──
+
+@app.post("/api/agent/check")
+async def agent_check(request: Request):
+    from agents.document_agent import check_and_improve
+    body = await request.json()
+    result = check_and_improve(body.get("text", ""))
+    return result
+
+
+@app.post("/api/agent/summarize")
+async def agent_summarize(request: Request):
+    from agents.summary_agent import summarize, bullet_summary, quick_summary
+    body = await request.json()
+    style = body.get("style", "full")
+    text = body.get("text", "")
+    if style == "bullet":
+        result = bullet_summary(text)
+    elif style == "quick":
+        result = quick_summary(text)
+    else:
+        result = summarize(text)
+    return result
+
+
+@app.post("/api/agent/extract")
+async def agent_extract(request: Request):
+    from agents.info_agent import extract_info, generate_report, research_topic
+    body = await request.json()
+    atype = body.get("type", "entities")
+    text = body.get("text", "")
+    if atype == "report":
+        result = generate_report(text)
+    elif atype == "research":
+        topic = body.get("topic", "")
+        result = research_topic(topic) if topic else {"status": "error", "error_message": "No topic provided"}
+    else:
+        result = extract_info(text)
+    return result
+
+
 # ── Health ──
 
 @app.get("/api/health")
