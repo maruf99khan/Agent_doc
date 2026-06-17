@@ -122,6 +122,17 @@ def delete_file(filename: str) -> bool:
     return False
 
 
+def _safe_pdf_line(line: str, max_len: int = 80) -> str:
+    """Break long unbreakable segments so FPDF2 multi_cell doesn't crash."""
+    result = []
+    for word in line.split(' '):
+        while len(word) > max_len:
+            result.append(word[:max_len])
+            word = word[max_len:]
+        result.append(word)
+    return ' '.join(result)
+
+
 def create_pdf(content: str, name: str = "report.pdf") -> str:
     try:
         from fpdf import FPDF
@@ -139,8 +150,12 @@ def create_pdf(content: str, name: str = "report.pdf") -> str:
             if not line:
                 pdf.ln(2)
                 continue
-            safe = line.encode('latin-1', 'replace').decode('latin-1')
-            pdf.multi_cell(0, 5, safe)
+            safe = _safe_pdf_line(line).encode('latin-1', 'replace').decode('latin-1')
+            try:
+                pdf.multi_cell(0, 5, safe)
+            except RuntimeError as e:
+                pdf.ln(2)
+                continue
         path = os.path.join(WORKSPACE, name)
         pdf.output(path)
         return name

@@ -7,8 +7,8 @@ import { useChat } from './hooks/useChat.js'
 export default function App() {
   const { messages, isLoading, sendMessage, clearChat } = useChat()
 
-  const handleSend = useCallback((text, fileContext) => {
-    sendMessage(text, fileContext)
+  const handleSend = useCallback((text, fileContext, attachedFiles) => {
+    sendMessage(text, fileContext, attachedFiles)
   }, [sendMessage])
 
   return (

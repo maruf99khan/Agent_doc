@@ -112,19 +112,15 @@ def _build_messages(message: str, history: list[dict], system_extra: str = "") -
         "- **Review** the document (grammar, clarity, tone, structure)\n"
         "- **Summarize** it (executive summary, bullet points, key takeaways)\n"
         "- **Extract information** (entities, facts, structured data)\n"
-        "- **Research** related topics using web_search\n"
-        "- **Save** results as files using create_file\n\n"
-        "Tools available:\n"
-        "- **web_search(query)** — search the internet for research\n"
-        "- **create_file(filename, content)** — save content to a file (user can download it)\n"
-        "- **read_file(filename)** — read a file from the workspace\n"
-        "- **list_files()** — list workspace files\n\n"
+        "- **Research** related topics using the web_search tool\n"
+        "- **Save** results as files using the create_file tool\n\n"
         "Rules:\n"
         "- Be proactive. When a document is uploaded, ask if they want review, summary, or extraction.\n"
         "- Only use read_file when the user explicitly names a file. If they say 'summarize it' without naming a file, just respond conversationally.\n"
         "- Use create_file when the user asks to save, create, or export something.\n"
         "- Use web_search when the user wants research on a topic.\n"
-        "- Format responses in Markdown."
+        "- Format responses in Markdown.\n"
+        "- CRITICAL: You have function calling tools available. ALWAYS call the function directly instead of outputting JSON or describing what function you would call. Do not write 'Here is a JSON for a function call' — just call the function."
     )
     if system_extra:
         system += f"\n\n{system_extra}"
@@ -134,6 +130,32 @@ def _build_messages(message: str, history: list[dict], system_extra: str = "") -
         messages.append({"role": role, "content": h.get("content", "")})
     messages.append({"role": "user", "content": message})
     return messages
+
+
+_TOOL_NAMES = {t["function"]["name"] for t in TOOLS}
+
+def _parse_json_tool_call(text: str):
+    """Fallback: try to extract a tool call from text that looks like JSON."""
+    import re
+    text = text.strip()
+    for m in re.finditer(r'\{[^{}]*\}', text, re.DOTALL):
+        block = m.group()
+        try:
+            data = json.loads(block)
+        except json.JSONDecodeError:
+            continue
+        name = data.get("name") or data.get("function")
+        if name in _TOOL_NAMES:
+            params = data.get("parameters") or data.get("arguments") or {}
+            class FakeToolCall:
+                pass
+            tc = FakeToolCall()
+            tc.function = FakeToolCall()
+            tc.function.name = name
+            tc.function.arguments = json.dumps(params)
+            tc.id = "fallback_" + name
+            return tc, None
+    return None, None
 
 
 def _execute_tool(tool_call) -> tuple[str, dict | None]:
@@ -178,13 +200,17 @@ def _execute_tool(tool_call) -> tuple[str, dict | None]:
         return f"File saved: {filename}", {"filename": filename, "url": f"/api/files/download/{filename}"}
 
     if func_name == "read_file":
-        from file_service import read_file_content
+        from file_service import read_file_content, extract_text, get_file_path
         filename = args["filename"]
-        try:
-            content = read_file_content(filename)
-            return f"--- {filename} ---\n{content}", None
-        except FileNotFoundError:
+        path = get_file_path(filename)
+        if not path:
             return f"Error: File '{filename}' not found in workspace.", None
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in ('.pdf', '.docx'):
+            content = extract_text(filename) or "[No extractable text found]"
+        else:
+            content = read_file_content(filename)
+        return f"--- {filename} ---\n{content}", None
 
     if func_name == "list_files":
         from file_service import list_files
@@ -229,9 +255,6 @@ async def chat_stream(
             msg = choice.message
             finish = choice.finish_reason
 
-            if msg.content:
-                yield json.dumps({"type": "text", "content": msg.content})
-
             if finish == "tool_calls" and msg.tool_calls:
                 messages.append(msg)
                 for tc in msg.tool_calls:
@@ -244,11 +267,28 @@ async def chat_stream(
                         "tool_call_id": tc.id,
                         "content": result,
                     })
-            else:
-                for f in created_files:
-                    yield json.dumps({"type": "file_created", **f})
-                yield json.dumps({"type": "done"})
-                return
+                continue
+
+            text = (msg.content or "").strip()
+            parsed, _ = _parse_json_tool_call(text)
+            if parsed:
+                logger.info(f"Fallback JSON tool: {parsed.function.name}")
+                result, file_info = _execute_tool(parsed)
+                if file_info:
+                    created_files.append(file_info)
+                messages.append({
+                    "role": "system",
+                    "content": f"Tool executed: {result}",
+                })
+                continue
+
+            if msg.content:
+                yield json.dumps({"type": "text", "content": msg.content})
+
+            for f in created_files:
+                yield json.dumps({"type": "file_created", **f})
+            yield json.dumps({"type": "done"})
+            return
 
         for f in created_files:
             yield json.dumps({"type": "file_created", **f})

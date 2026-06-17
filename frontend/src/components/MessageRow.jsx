@@ -32,6 +32,11 @@ export default function MessageRow({ message }) {
           <div className="msg-text">
             <span className="prefix">&gt;</span>
             {content}
+            {(message.files || []).map((f, i) => (
+              <span key={i} className="file-chip msg-file-chip" data-ext={f.filename?.split('.').pop()?.toLowerCase()}>
+                📎 {f.filename}
+              </span>
+            ))}
           </div>
         ) : isLoading && !content ? (
           <div className="typing-indicator">

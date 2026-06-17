@@ -317,6 +317,21 @@ body {
   font-weight: 700;
 }
 
+.user-msg .msg-text .msg-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 3px 4px 2px 0;
+  cursor: default;
+}
+.user-msg .msg-text .msg-file-chip[data-ext="pdf"] { background: rgba(154,91,240,0.06); border: 1px solid rgba(154,91,240,0.08); color: var(--gonzo-purple); }
+.user-msg .msg-text .msg-file-chip[data-ext="docx"] { background: rgba(91,184,240,0.06); border: 1px solid rgba(91,184,240,0.08); color: var(--gonzo-blue); }
+.user-msg .msg-text .msg-file-chip[data-ext="txt"] { background: rgba(69,214,224,0.06); border: 1px solid rgba(69,214,224,0.08); color: var(--gonzo-teal); }
+.user-msg .msg-text .msg-file-chip:not([data-ext]) { background: rgba(34,211,238,0.06); border: 1px solid rgba(34,211,238,0.08); color: var(--gonzo-cyan); }
+
 .ai-msg .msg-content {
   max-width: 80%;
   margin-right: auto;

@@ -11,10 +11,10 @@ export function useChat() {
 
   const history = messages.map(m => ({ role: m.role, content: m.content }))
 
-  const sendMessage = useCallback(async (text, fileContent = '') => {
-    if (!text.trim()) return
+  const sendMessage = useCallback(async (text, fileContent = '', attachedFiles = []) => {
+    if (!text.trim() && !fileContent) return
     setIsLoading(true)
-    addMessage('user', text)
+    addMessage('user', text, attachedFiles.length ? { files: attachedFiles.map(name => ({ filename: name })) } : {})
 
     const marker = { role: 'assistant', content: '', id: 'streaming' }
     setMessages(prev => [...prev, marker])

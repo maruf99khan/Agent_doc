@@ -11,7 +11,7 @@ export default function InputBar({ onSend, isLoading, className }) {
   const handleSend = () => {
     const content = [...fileContexts, text].join('\n\n').trim()
     if (!content) return
-    onSend(text, fileContexts.join('\n\n---\n\n'))
+    onSend(text, fileContexts.join('\n\n---\n\n'), attachedFiles.map(f => f.name))
     setText('')
     setAttachedFiles([])
     setFileContexts([])
