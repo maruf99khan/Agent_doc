@@ -24,7 +24,7 @@ function ResultBox({ title, content }) {
   )
 }
 
-export default function AgentTabs({ docText, onDocText, onClearDoc, results, onAgentAction, isLoading, children }) {
+export default function AgentTabs({ docText, onDocText, onClearDoc, forceShow, results, onAgentAction, isLoading, children }) {
   const [activeTab, setActiveTab] = useState('chat')
   const [researchTopic, setResearchTopic] = useState('')
   const [processingAction, setProcessingAction] = useState(null)
@@ -73,7 +73,9 @@ export default function AgentTabs({ docText, onDocText, onClearDoc, results, onA
     return <ResultBox title={title} content={results[key]} />
   }
 
-  if (!docText) {
+  const showTabs = forceShow || !!docText
+
+  if (!showTabs) {
     return (
       <div className="agent-tabs">
         <div className="tab-content" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>

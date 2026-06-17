@@ -10,6 +10,7 @@ export default function App() {
   const [waking, setWaking] = useState(true)
   const [results, setResults] = useState({})
   const [docText, setDocText] = useState('')
+  const [agentMode, setAgentMode] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -29,6 +30,11 @@ export default function App() {
 
   const handleDocumentText = useCallback((text) => {
     setDocText(text)
+    setAgentMode(true)
+  }, [])
+
+  const toggleAgentMode = useCallback(() => {
+    setAgentMode(prev => !prev)
   }, [])
 
   const clearDocument = useCallback(() => {
@@ -94,11 +100,12 @@ export default function App() {
             <button className="wake-dismiss" onClick={() => setWaking(false)}>x</button>
           </div>
         )}
-        <Header className="floating-card header" onClear={clearChat} />
+        <Header className="floating-card header" onClear={clearChat} agentMode={agentMode} onToggleAgent={toggleAgentMode} />
         <AgentTabs
           docText={docText}
           onDocText={handleDocumentText}
           onClearDoc={clearDocument}
+          forceShow={agentMode}
           results={results}
           onAgentAction={handleAgentAction}
           isLoading={isLoading}
