@@ -44,7 +44,9 @@ export function useChat() {
             ))
           } else if (event.type === 'file_created') {
             setMessages(msgs => msgs.map(m =>
-              m.id === 'streaming' ? { ...m, file: { filename: event.filename, url: event.url } } : m
+              m.id === 'streaming'
+                ? { ...m, files: [...(m.files || []), { filename: event.filename, url: event.url }] }
+                : m
             ))
           } else if (event.type === 'error') {
             setMessages(msgs => msgs.map(m =>

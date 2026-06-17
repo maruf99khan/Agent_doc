@@ -47,7 +47,7 @@ export default function MessageRow({ message }) {
             ) : (
               <span style={{ opacity: 0.3, fontStyle: 'italic' }}>no response</span>
             )}
-            <DownloadBadge file={message.file} />
+            {(message.files || []).map((f, i) => <DownloadBadge key={i} file={f} />)}
           </div>
         )}
       </div>

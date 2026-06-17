@@ -242,6 +242,8 @@ async def chat_stream(
                 yield json.dumps({"type": "done"})
                 return
 
+        for f in created_files:
+            yield json.dumps({"type": "file_created", **f})
         yield json.dumps({"type": "done"})
 
     except Exception as e:
