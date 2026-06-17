@@ -10,7 +10,7 @@ const TABS = [
 ]
 
 function ResultBox({ title, content }) {
-  if (!content && title !== 'Research Topic') return null
+  if (!content) return null
   return (
     <div className="result-box">
       <div className="result-header">
@@ -19,17 +19,13 @@ function ResultBox({ title, content }) {
           <button className="copy-btn" onClick={() => navigator.clipboard.writeText(content)} title="Copy">📋</button>
         )}
       </div>
-      {content ? (
-        <div className="result-content">{content}</div>
-      ) : (
-        <div className="result-placeholder">Run a task above to see results here.</div>
-      )}
+      <div className="result-content">{content}</div>
     </div>
   )
 }
 
-export default function AgentTabs({ results, onAgentAction, isLoading, onSend, attachedFiles, fileContexts, children }) {
-  const [activeTab, setActiveTab] = useState('review')
+export default function AgentTabs({ results, onAgentAction, isLoading, children }) {
+  const [activeTab, setActiveTab] = useState('chat')
   const [docText, setDocText] = useState('')
   const [researchTopic, setResearchTopic] = useState('')
   const [processingAction, setProcessingAction] = useState(null)
@@ -49,10 +45,16 @@ export default function AgentTabs({ results, onAgentAction, isLoading, onSend, a
         text = `[File attached: ${file.name}]`
       }
       setDocText(text)
+      setActiveTab('review')
     } catch (err) {
       console.error('Upload failed:', err)
     }
     e.target.value = ''
+  }
+
+  const clearDoc = () => {
+    setDocText('')
+    setActiveTab('chat')
   }
 
   const run = async (action, extra = {}) => {
@@ -69,23 +71,37 @@ export default function AgentTabs({ results, onAgentAction, isLoading, onSend, a
   const isBusy = isLoading || processingAction !== null
 
   const renderResult = (key, title) => {
-    const content = results[key]
-    return <ResultBox title={title} content={content} />
+    return <ResultBox title={title} content={results[key]} />
+  }
+
+  if (!docText) {
+    return (
+      <div className="agent-tabs">
+        <div className="tab-content" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div className="tab-pane tab-pane-chat" style={{ height: '100%' }}>
+            {children}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="agent-tabs">
       <div className="tabs-header">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            className={`tab-btn ${activeTab === t.key ? 'tab-active' : ''}`}
-            onClick={() => setActiveTab(t.key)}
-          >
-            <span className="tab-icon">{t.icon}</span>
-            <span className="tab-label">{t.label}</span>
-          </button>
-        ))}
+        <div className="tabs-header-left">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              className={`tab-btn ${activeTab === t.key ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab(t.key)}
+            >
+              <span className="tab-icon">{t.icon}</span>
+              <span className="tab-label">{t.label}</span>
+            </button>
+          ))}
+        </div>
+        <button className="clear-doc-btn" onClick={clearDoc} title="Back to chat">✕</button>
       </div>
 
       <div className="tab-content">
@@ -97,16 +113,14 @@ export default function AgentTabs({ results, onAgentAction, isLoading, onSend, a
             </div>
             <div className="doc-upload-row">
               <input type="file" id="review-upload" onChange={handleFilePick} accept=".txt,.md,.docx,.pdf" hidden />
-              <label htmlFor="review-upload" className="upload-label">
-                {docText ? '📎 Change document' : '📁 Upload document'}
-              </label>
-              {docText && <span className="doc-loaded">✓ Document loaded</span>}
+              <label htmlFor="review-upload" className="upload-label">📎 Change document</label>
+              <span className="doc-loaded">✓ Document loaded</span>
             </div>
             <div className="action-grid">
-              <button className="action-btn-primary action-blue" onClick={() => run('check')} disabled={isBusy || !docText}>
+              <button className="action-btn-primary action-blue" onClick={() => run('check')} disabled={isBusy}>
                 {processingAction === 'check' ? '⏳ Analyzing...' : '🔍 Check & Improve Document'}
               </button>
-              <button className="action-btn-secondary action-blue" onClick={() => run('check_quick')} disabled={isBusy || !docText}>
+              <button className="action-btn-secondary action-blue" onClick={() => run('check_quick')} disabled={isBusy}>
                 {processingAction === 'check_quick' ? '⏳...' : '💡 Quick Review Tips'}
               </button>
             </div>
@@ -124,19 +138,17 @@ export default function AgentTabs({ results, onAgentAction, isLoading, onSend, a
             </div>
             <div className="doc-upload-row">
               <input type="file" id="summary-upload" onChange={handleFilePick} accept=".txt,.md,.docx,.pdf" hidden />
-              <label htmlFor="summary-upload" className="upload-label">
-                {docText ? '📎 Change document' : '📁 Upload document'}
-              </label>
-              {docText && <span className="doc-loaded">✓ Document loaded</span>}
+              <label htmlFor="summary-upload" className="upload-label">📎 Change document</label>
+              <span className="doc-loaded">✓ Document loaded</span>
             </div>
             <div className="action-grid action-grid-3">
-              <button className="action-btn-primary action-teal" onClick={() => run('summarize', { style: 'full' })} disabled={isBusy || !docText}>
+              <button className="action-btn-primary action-teal" onClick={() => run('summarize', { style: 'full' })} disabled={isBusy}>
                 {processingAction === 'summarize-full' ? '⏳...' : '📄 Full Summary'}
               </button>
-              <button className="action-btn-secondary action-teal" onClick={() => run('summarize', { style: 'bullet' })} disabled={isBusy || !docText}>
+              <button className="action-btn-secondary action-teal" onClick={() => run('summarize', { style: 'bullet' })} disabled={isBusy}>
                 {processingAction === 'summarize-bullet' ? '⏳...' : '🎯 Bullet Points'}
               </button>
-              <button className="action-btn-tertiary action-teal" onClick={() => run('summarize', { style: 'quick' })} disabled={isBusy || !docText}>
+              <button className="action-btn-tertiary action-teal" onClick={() => run('summarize', { style: 'quick' })} disabled={isBusy}>
                 {processingAction === 'summarize-quick' ? '⏳...' : '🚀 Quick Summary'}
               </button>
             </div>
@@ -156,16 +168,14 @@ export default function AgentTabs({ results, onAgentAction, isLoading, onSend, a
             </div>
             <div className="doc-upload-row">
               <input type="file" id="extract-upload" onChange={handleFilePick} accept=".txt,.md,.docx,.pdf" hidden />
-              <label htmlFor="extract-upload" className="upload-label">
-                {docText ? '📎 Change document' : '📁 Upload document'}
-              </label>
-              {docText && <span className="doc-loaded">✓ Document loaded</span>}
+              <label htmlFor="extract-upload" className="upload-label">📎 Change document</label>
+              <span className="doc-loaded">✓ Document loaded</span>
             </div>
             <div className="action-grid">
-              <button className="action-btn-primary action-purple" onClick={() => run('extract', { type: 'entities' })} disabled={isBusy || !docText}>
+              <button className="action-btn-primary action-purple" onClick={() => run('extract', { type: 'entities' })} disabled={isBusy}>
                 {processingAction === 'extract-entities' ? '⏳...' : '🎯 Extract Entities & Facts'}
               </button>
-              <button className="action-btn-secondary action-purple" onClick={() => run('extract', { type: 'report' })} disabled={isBusy || !docText}>
+              <button className="action-btn-secondary action-purple" onClick={() => run('extract', { type: 'report' })} disabled={isBusy}>
                 {processingAction === 'extract-report' ? '⏳...' : '📊 Generate Report'}
               </button>
             </div>

@@ -584,11 +584,31 @@ body {
 
 .tabs-header {
   display: flex;
+  align-items: center;
   gap: 0;
   padding: 0 4px;
   border-bottom: 1px solid rgba(255,255,255,0.02);
   flex-shrink: 0;
 }
+
+.tabs-header-left {
+  display: flex;
+  flex: 1;
+  gap: 0;
+}
+
+.clear-doc-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.08);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  margin-right: 4px;
+}
+.clear-doc-btn:hover { color: #f06a6a; background: rgba(240,106,106,0.04); }
 
 .tab-btn {
   flex: 1;
