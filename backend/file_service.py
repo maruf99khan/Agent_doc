@@ -3,13 +3,8 @@ import uuid
 import re
 from pathlib import Path
 
-_BASE_CANDIDATE = "/data/workspace"
-try:
-    os.makedirs(_BASE_CANDIDATE, exist_ok=True)
-    BASE = _BASE_CANDIDATE
-except (PermissionError, OSError):
-    BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'workspace')
-    os.makedirs(BASE, exist_ok=True)
+BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'workspace')
+os.makedirs(BASE, exist_ok=True)
 
 TEXT_EXTS = {'txt', 'md', 'py', 'js', 'ts', 'jsx', 'tsx', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml', 'ini', 'cfg', 'log', 'sh', 'bat', 'ps1', 'env', 'rst', 'tex', 'c', 'cpp', 'h', 'java', 'rs', 'go', 'rb', 'php', 'swift', 'kt', 'scala', 'sql', 'r', 'lua'}
 HEADING_PATTERN = re.compile(r'^(#{1,3})\s+\w')
