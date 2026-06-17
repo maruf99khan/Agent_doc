@@ -53,6 +53,15 @@ export default function InputBar({ onSend, isLoading, className }) {
     setFileContexts(prev => prev.filter((_, i) => i !== index))
   }
 
+  const handleSuggestion = (suggestion) => {
+    setText(suggestion)
+    textareaRef.current?.focus()
+  }
+
+  React.useEffect(() => {
+    window.__gonzoSuggestion = handleSuggestion
+  }, [])
+
   return (
     <div className={`input-bar ${className || ''}`}>
       {attachedFiles.length > 0 && (
