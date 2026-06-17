@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useState } from 'react'
 import Header from './components/Header.jsx'
 import ChatView from './components/ChatView.jsx'
 import InputBar from './components/InputBar.jsx'
+import AgentTabs from './components/AgentTabs.jsx'
 import { useChat } from './hooks/useChat.js'
 
 export default function App() {
   const { messages, isLoading, sendMessage, clearChat, addAgentMessage } = useChat()
   const [waking, setWaking] = useState(true)
+  const [results, setResults] = useState({})
 
   useEffect(() => {
     const controller = new AbortController()
@@ -28,17 +30,20 @@ export default function App() {
     let endpoint, body
     if (action === 'check') {
       endpoint = '/api/agent/check'
-      body = { text }
+      body = { text, quick: extra.quick || false }
+    } else if (action === 'check_quick') {
+      endpoint = '/api/agent/check'
+      body = { text, quick: true }
     } else if (action === 'summarize') {
       endpoint = '/api/agent/summarize'
       body = { text, style: extra.style || 'full' }
     } else if (action === 'extract') {
       endpoint = '/api/agent/extract'
       body = { text, type: extra.type || 'entities', topic: extra.topic || '' }
+      if (body.type === 'research' && !body.topic) return
     } else {
       return
     }
-    addAgentMessage(`⚙️ Running *${action}* agent...`)
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -47,14 +52,20 @@ export default function App() {
       })
       const data = await res.json()
       if (data.status === 'success') {
-        addAgentMessage(data.result)
-      } else {
-        addAgentMessage(`⚠ Agent error: ${data.error_message}`)
+        let key
+        if (action === 'check') key = 'review'
+        else if (action === 'check_quick') key = 'review'
+        else if (action === 'summarize') {
+          key = extra.style === 'bullet' ? 'bulletSummary' : extra.style === 'quick' ? 'quickSummary' : 'summary'
+        } else if (action === 'extract') {
+          key = extra.type === 'report' ? 'report' : extra.type === 'research' ? 'research' : 'extract'
+        }
+        setResults(prev => ({ ...prev, [key]: data.result }))
       }
     } catch (err) {
-      addAgentMessage(`⚠ Request failed: ${err.message}`)
+      console.error('Agent action failed:', err)
     }
-  }, [addAgentMessage])
+  }, [])
 
   return (
     <>
@@ -75,8 +86,14 @@ export default function App() {
           </div>
         )}
         <Header className="floating-card header" onClear={clearChat} />
-        <ChatView className="floating-card chat-view" messages={messages} isLoading={isLoading} />
-        <InputBar className="floating-card input-bar" onSend={handleSend} onAgentAction={handleAgentAction} isLoading={isLoading} />
+        <AgentTabs
+          results={results}
+          onAgentAction={handleAgentAction}
+          isLoading={isLoading}
+        >
+          <ChatView className="chat-view" messages={messages} isLoading={isLoading} />
+          <InputBar className="input-bar" onSend={handleSend} isLoading={isLoading} />
+        </AgentTabs>
       </div>
     </>
   )

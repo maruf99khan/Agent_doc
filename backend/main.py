@@ -163,7 +163,11 @@ async def forget_memory():
 async def agent_check(request: Request):
     from agents.document_agent import check_and_improve
     body = await request.json()
-    result = check_and_improve(body.get("text", ""))
+    text = body.get("text", "")
+    quick = body.get("quick", False)
+    if quick and len(text) > 600:
+        text = text[:500]
+    result = check_and_improve(text)
     return result
 
 
@@ -179,7 +183,7 @@ async def agent_summarize(request: Request):
         result = quick_summary(text)
     else:
         result = summarize(text)
-    return result
+    return {"status": result.get("status"), "result": result.get("result"), "error_message": result.get("error_message"), "style": style}
 
 
 @app.post("/api/agent/extract")
@@ -195,7 +199,7 @@ async def agent_extract(request: Request):
         result = research_topic(topic) if topic else {"status": "error", "error_message": "No topic provided"}
     else:
         result = extract_info(text)
-    return result
+    return {"status": result.get("status"), "result": result.get("result"), "error_message": result.get("error_message"), "type": atype}
 
 
 # ── Health ──

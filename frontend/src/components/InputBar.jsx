@@ -1,11 +1,10 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { uploadFile } from '../api/client.js'
 
-export default function InputBar({ onSend, onAgentAction, isLoading, className }) {
+export default function InputBar({ onSend, isLoading, className }) {
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState([])
   const [fileContexts, setFileContexts] = useState([])
-  const [activeText, setActiveText] = useState('')
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -16,7 +15,6 @@ export default function InputBar({ onSend, onAgentAction, isLoading, className }
     setText('')
     setAttachedFiles([])
     setFileContexts([])
-    setActiveText('')
   }
 
   const handleKeyDown = (e) => {
@@ -31,20 +29,17 @@ export default function InputBar({ onSend, onAgentAction, isLoading, className }
     for (const file of files) {
       try {
         const result = await uploadFile(file)
-        const ext = file.name.split('.').pop()?.toLowerCase()
         setAttachedFiles(prev => [...prev, { name: file.name, id: result.file_id }])
         if (result.extracted_text) {
-          const ctx = `--- File: ${file.name} ---\n${result.extracted_text}`
-          setFileContexts(prev => [...prev, ctx])
-          setActiveText(prev => prev + (prev ? '\n\n' : '') + ctx)
-        } else if (['txt', 'md', 'py', 'js', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml'].includes(ext)) {
-          const t = await file.text()
-          const ctx = `--- File: ${file.name} ---\n${t}`
-          setFileContexts(prev => [...prev, ctx])
-          setActiveText(prev => prev + (prev ? '\n\n' : '') + ctx)
+          setFileContexts(prev => [...prev, `--- File: ${file.name} ---\n${result.extracted_text}`])
         } else {
-          setFileContexts(prev => [...prev, `[File attached: ${file.name}]`])
-          setActiveText(prev => prev + (prev ? '\n\n' : '') + `[File attached: ${file.name}]`)
+          const ext = file.name.split('.').pop()?.toLowerCase()
+          if (['txt', 'md', 'py', 'js', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml'].includes(ext)) {
+            const text = await file.text()
+            setFileContexts(prev => [...prev, `--- File: ${file.name} ---\n${text}`])
+          } else {
+            setFileContexts(prev => [...prev, `[File attached: ${file.name}]`])
+          }
         }
       } catch (err) {
         console.error('Upload failed:', err)
@@ -67,8 +62,6 @@ export default function InputBar({ onSend, onAgentAction, isLoading, className }
     window.__gonzoSuggestion = handleSuggestion
   }, [])
 
-  const docText = fileContexts.length > 0 ? fileContexts.join('\n\n') : ''
-
   return (
     <div className={`input-bar ${className || ''}`}>
       {attachedFiles.length > 0 && (
@@ -79,20 +72,6 @@ export default function InputBar({ onSend, onAgentAction, isLoading, className }
               <span className="chip-remove" onClick={() => removeFile(i)}>x</span>
             </span>
           ))}
-        </div>
-      )}
-
-      {attachedFiles.length > 0 && (
-        <div className="agent-actions">
-          <button className="agent-btn agent-review" onClick={() => onAgentAction('check', docText)} disabled={isLoading}>
-            📝 Review
-          </button>
-          <button className="agent-btn agent-summarize" onClick={() => onAgentAction('summarize', docText)} disabled={isLoading}>
-            📋 Summarize
-          </button>
-          <button className="agent-btn agent-extract" onClick={() => onAgentAction('extract', docText)} disabled={isLoading}>
-            🔍 Extract
-          </button>
         </div>
       )}
 
