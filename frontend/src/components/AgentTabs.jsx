@@ -45,7 +45,7 @@ export default function AgentTabs({ results, onAgentAction, isLoading, children 
         text = `[File attached: ${file.name}]`
       }
       setDocText(text)
-      setActiveTab('review')
+      setActiveTab('chat')
     } catch (err) {
       console.error('Upload failed:', err)
     }
