@@ -122,9 +122,9 @@ async def list_files_endpoint():
     return file_service.list_files()
 
 
-@app.delete("/api/files/{file_id}")
-async def delete_file_endpoint(file_id: str):
-    if file_service.delete_file(file_id):
+@app.delete("/api/files/{filename:path}")
+async def delete_file_endpoint(filename: str):
+    if file_service.delete_file(filename):
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="File not found")
 

@@ -15,24 +15,25 @@ def _safe_path(filename: str) -> Path:
 
 
 def save_upload(file_bytes: bytes, original_name: str) -> dict:
-    ext = os.path.splitext(original_name)[1]
-    file_id = str(uuid.uuid4())[:8]
-    safe_name = f"{file_id}{ext}"
+    safe_name = os.path.basename(original_name)
+    if not safe_name:
+        safe_name = f"unnamed_{uuid.uuid4()[:8]}"
     path = _safe_path(safe_name)
     path.write_bytes(file_bytes)
+    size = len(file_bytes)
     return {
-        "file_id": file_id,
-        "name": original_name,
+        "file_id": safe_name,
+        "name": safe_name,
         "saved_as": safe_name,
-        "size": len(file_bytes),
+        "size": size,
         "path": str(path),
     }
 
 
-def get_file_path(file_id: str) -> Path | None:
-    for f in os.listdir(WORKSPACE):
-        if f.startswith(file_id):
-            return Path(os.path.join(WORKSPACE, f))
+def get_file_path(filename: str) -> Path | None:
+    path = _safe_path(filename)
+    if path.exists():
+        return path
     return None
 
 
@@ -62,11 +63,14 @@ def list_files() -> list[dict]:
     return files
 
 
-def delete_file(file_id: str) -> bool:
-    path = get_file_path(file_id)
-    if path and path.exists():
-        path.unlink()
-        return True
+def delete_file(filename: str) -> bool:
+    try:
+        path = _safe_path(filename)
+        if path.exists():
+            path.unlink()
+            return True
+    except ValueError:
+        pass
     return False
 
 

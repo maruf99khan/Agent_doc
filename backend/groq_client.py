@@ -62,6 +62,17 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_files",
+            "description": "List all files in the workspace with their sizes",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
 ]
 
 
@@ -99,7 +110,8 @@ def _build_messages(message: str, history: list[dict], system_extra: str = "") -
         "You are Gonzo, a helpful AI assistant with access to tools:\n"
         "- **web_search(query)** — search the internet for current info\n"
         "- **create_file(filename, content)** — save content to a file (user can download it)\n"
-        "- **read_file(filename)** — read a file from the workspace\n\n"
+        "- **read_file(filename)** — read a file from the workspace\n"
+        "- **list_files()** — list all files in the workspace\n\n"
         "When the user asks you to search something, summarize a file, "
         "create/modify a document, or analyze content — use the appropriate tool. "
         "Always use create_file when the user asks you to save or create something. "
@@ -156,6 +168,16 @@ def _execute_tool(tool_call) -> tuple[str, dict | None]:
             return f"--- {filename} ---\n{content}", None
         except FileNotFoundError:
             return f"Error: File '{filename}' not found in workspace.", None
+
+    if func_name == "list_files":
+        from file_service import list_files
+        files = list_files()
+        if not files:
+            return "No files in workspace.", None
+        lines = []
+        for f in files:
+            lines.append(f"- {f['name']} ({f['size']} bytes)")
+        return "Files in workspace:\n" + "\n".join(lines), None
 
     return f"Unknown tool: {func_name}", None
 
