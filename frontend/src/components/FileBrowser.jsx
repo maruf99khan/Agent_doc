@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { uploadFile } from '../api/client.js'
 
+function getSessionId() {
+  const key = 'gonzo_session_id'
+  let id = localStorage.getItem(key)
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id) }
+  return id
+}
+function sessHeaders() { return { 'X-Session-ID': getSessionId() } }
+
 function formatSize(bytes) {
   if (!bytes || bytes === 0) return '—'
   if (bytes < 1024) return `${bytes} B`
@@ -22,9 +30,10 @@ export default function FileBrowser() {
 
   const loadFiles = useCallback(async () => {
     try {
-      const res = await fetch('/api/files/list')
+      const res = await fetch('/api/files/list', { headers: sessHeaders() })
       const data = await res.json()
-      if (data.status === 'success') setFiles(data.files || [])
+      if (Array.isArray(data)) setFiles(data)
+      else if (data.files) setFiles(data.files)
     } catch (err) {
       console.error('Failed to load files:', err)
     } finally {
@@ -46,12 +55,11 @@ export default function FileBrowser() {
     }
   }
 
-  const handleDelete = async (fileId) => {
-    if (!confirm('Delete this file?')) return
+  const handleDelete = async (name) => {
+    if (!confirm(`Delete ${name}?`)) return
     try {
-      const res = await fetch(`/api/files/delete/${fileId}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (data.status === 'success') loadFiles()
+      await fetch(`/api/files/${encodeURIComponent(name)}`, { method: 'DELETE', headers: sessHeaders() })
+      loadFiles()
     } catch (err) {
       console.error('Delete failed:', err)
     }
@@ -81,8 +89,9 @@ export default function FileBrowser() {
           <div className="download-items">
             {files.map(f => {
               const ext = f.name?.split('.').pop()?.toLowerCase() || ''
+              const ts = f.modified ? new Date(f.modified * 1000).toLocaleString() : ''
               return (
-                <div key={f.id} className="download-row">
+                <div key={f.name} className="download-row">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{
                       fontSize: 9, textTransform: 'uppercase', letterSpacing: 1,
@@ -93,19 +102,19 @@ export default function FileBrowser() {
                         {f.name}
                       </div>
                       <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.08)' }}>
-                        {formatSize(f.size)} · {f.created_at || ''}
+                        {formatSize(f.size)} · {ts}
                       </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <a
-                      href={`/api/files/download/${f.id}`}
+                      href={`/api/files/download/${encodeURIComponent(f.name)}`}
                       className="download-row-btn"
                       style={{ textDecoration: 'none' }}
                     >
                       📥
                     </a>
-                    <button className="download-row-btn" onClick={() => handleDelete(f.id)}
+                    <button className="download-row-btn" onClick={() => handleDelete(f.name)}
                       style={{ borderColor: 'rgba(240,106,106,0.06)', color: 'rgba(240,106,106,0.5)' }}>
                       🗑
                     </button>
