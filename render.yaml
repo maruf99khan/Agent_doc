@@ -9,7 +9,13 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false
       - key: OPENROUTER_MODEL
-        value: meta-llama/llama-3.3-70b-instruct
+        value: openrouter/free
+      - key: DOCUMENT_MODEL
+        value: meta-llama/llama-3.2-3b-instruct
+      - key: SUMMARY_MODEL
+        value: google/gemma-3-4b-it
+      - key: INFO_MODEL
+        value: deepseek/deepseek-r1
       - key: PYTHON_VERSION
         value: 3.12.0
     healthCheckPath: /api/health

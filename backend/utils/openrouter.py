@@ -15,8 +15,9 @@ def _get_config():
     return api_key, model, base
 
 
-def chat(prompt: str, system_prompt: str = None) -> dict:
-    api_key, model, base_url = _get_config()
+def chat(prompt: str, system_prompt: str = None, model: str = None) -> dict:
+    api_key, default_model, base_url = _get_config()
+    model = model or default_model
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
