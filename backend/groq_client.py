@@ -143,7 +143,9 @@ def _build_messages(message: str, history: list[dict], system_extra: str = "") -
 
 
 def _parse_json_tool_call(text: str):
-    """Fallback: extract a tool call from text containing nested JSON."""
+    """Extract a tool call from text containing nested JSON like:
+    {"name": "create_file", "parameters": {...}}
+    """
     text = text.strip()
     i = 0
     while i < len(text):
@@ -174,6 +176,43 @@ def _parse_json_tool_call(text: str):
             tc.function.name = name
             tc.function.arguments = json.dumps(params)
             tc.id = "fallback_" + name
+            return tc, None
+    return None, None
+
+
+def _parse_func_syntax(text: str):
+    """Extract a tool call from text using func_name(key="val", ...) syntax like:
+    create_file(content="# Title\n\nbody...", filename="report.pdf")
+    """
+    text = text.strip()
+    for fname in _TOOL_NAMES:
+        pattern = re.compile(re.escape(fname) + r'\s*\(')
+        m = pattern.search(text)
+        if not m:
+            continue
+        start = m.end()
+        depth = 1
+        j = start
+        while j < len(text) and depth > 0:
+            if text[j] == '(':
+                depth += 1
+            elif text[j] == ')':
+                depth -= 1
+            j += 1
+        args_str = text[start:j-1]
+        params = {}
+        for pair in re.finditer(r'(\w+)\s*=\s*"((?:[^"\\]|\\.)*)"', args_str):
+            key = pair.group(1)
+            val = pair.group(2).replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+            params[key] = val
+        if params:
+            class FakeToolCall:
+                pass
+            tc = FakeToolCall()
+            tc.function = FakeToolCall()
+            tc.function.name = fname
+            tc.function.arguments = json.dumps(params)
+            tc.id = "fallback_" + fname
             return tc, None
     return None, None
 
@@ -270,6 +309,7 @@ async def chat_stream(
                 max_tokens=4096,
                 stream=False,
                 tools=TOOLS,
+                function_call="auto",
             )
 
             choice = response.choices[0]
@@ -300,6 +340,8 @@ async def chat_stream(
 
             text = (msg.content or "").strip()
             parsed, _ = _parse_json_tool_call(text)
+            if not parsed:
+                parsed, _ = _parse_func_syntax(text)
             if parsed:
                 logger.info(f"Fallback JSON tool: {parsed.function.name}")
                 try:
