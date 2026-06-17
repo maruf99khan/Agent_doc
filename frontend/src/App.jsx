@@ -9,6 +9,7 @@ export default function App() {
   const { messages, isLoading, sendMessage, clearChat, addAgentMessage } = useChat()
   const [waking, setWaking] = useState(true)
   const [results, setResults] = useState({})
+  const [docText, setDocText] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -25,6 +26,15 @@ export default function App() {
   const handleSend = useCallback((text, fileContext, attachedFiles) => {
     sendMessage(text, fileContext, attachedFiles)
   }, [sendMessage])
+
+  const handleDocumentText = useCallback((text) => {
+    setDocText(text)
+  }, [])
+
+  const clearDocument = useCallback(() => {
+    setDocText('')
+    setResults({})
+  }, [])
 
   const handleAgentAction = useCallback(async (action, text, extra = {}) => {
     let endpoint, body
@@ -53,8 +63,7 @@ export default function App() {
       const data = await res.json()
       if (data.status === 'success') {
         let key
-        if (action === 'check') key = 'review'
-        else if (action === 'check_quick') key = 'review'
+        if (action === 'check' || action === 'check_quick') key = 'review'
         else if (action === 'summarize') {
           key = extra.style === 'bullet' ? 'bulletSummary' : extra.style === 'quick' ? 'quickSummary' : 'summary'
         } else if (action === 'extract') {
@@ -87,12 +96,15 @@ export default function App() {
         )}
         <Header className="floating-card header" onClear={clearChat} />
         <AgentTabs
+          docText={docText}
+          onDocText={handleDocumentText}
+          onClearDoc={clearDocument}
           results={results}
           onAgentAction={handleAgentAction}
           isLoading={isLoading}
         >
           <ChatView className="chat-view" messages={messages} isLoading={isLoading} />
-          <InputBar className="input-bar" onSend={handleSend} isLoading={isLoading} />
+          <InputBar className="input-bar" onSend={handleSend} onDocumentText={handleDocumentText} isLoading={isLoading} />
         </AgentTabs>
       </div>
     </>

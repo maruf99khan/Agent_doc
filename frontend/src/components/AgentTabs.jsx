@@ -24,9 +24,8 @@ function ResultBox({ title, content }) {
   )
 }
 
-export default function AgentTabs({ results, onAgentAction, isLoading, children }) {
+export default function AgentTabs({ docText, onDocText, onClearDoc, results, onAgentAction, isLoading, children }) {
   const [activeTab, setActiveTab] = useState('chat')
-  const [docText, setDocText] = useState('')
   const [researchTopic, setResearchTopic] = useState('')
   const [processingAction, setProcessingAction] = useState(null)
 
@@ -44,7 +43,7 @@ export default function AgentTabs({ results, onAgentAction, isLoading, children 
       } else {
         text = `[File attached: ${file.name}]`
       }
-      setDocText(text)
+      if (onDocText) onDocText(text)
       setActiveTab('chat')
     } catch (err) {
       console.error('Upload failed:', err)
@@ -53,7 +52,7 @@ export default function AgentTabs({ results, onAgentAction, isLoading, children 
   }
 
   const clearDoc = () => {
-    setDocText('')
+    if (onClearDoc) onClearDoc()
     setActiveTab('chat')
   }
 

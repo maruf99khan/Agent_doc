@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { uploadFile } from '../api/client.js'
 
-export default function InputBar({ onSend, isLoading, className }) {
+export default function InputBar({ onSend, onDocumentText, isLoading, className }) {
   const [text, setText] = useState('')
   const [attachedFiles, setAttachedFiles] = useState([])
   const [fileContexts, setFileContexts] = useState([])
@@ -31,12 +31,16 @@ export default function InputBar({ onSend, isLoading, className }) {
         const result = await uploadFile(file)
         setAttachedFiles(prev => [...prev, { name: file.name, id: result.file_id }])
         if (result.extracted_text) {
-          setFileContexts(prev => [...prev, `--- File: ${file.name} ---\n${result.extracted_text}`])
+          const ctx = `--- File: ${file.name} ---\n${result.extracted_text}`
+          setFileContexts(prev => [...prev, ctx])
+          if (onDocumentText) onDocumentText(ctx)
         } else {
           const ext = file.name.split('.').pop()?.toLowerCase()
           if (['txt', 'md', 'py', 'js', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml'].includes(ext)) {
             const text = await file.text()
-            setFileContexts(prev => [...prev, `--- File: ${file.name} ---\n${text}`])
+            const ctx = `--- File: ${file.name} ---\n${text}`
+            setFileContexts(prev => [...prev, ctx])
+            if (onDocumentText) onDocumentText(ctx)
           } else {
             setFileContexts(prev => [...prev, `[File attached: ${file.name}]`])
           }
