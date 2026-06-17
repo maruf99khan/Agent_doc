@@ -143,10 +143,23 @@ def _build_messages(message: str, history: list[dict], system_extra: str = "") -
 
 
 def _parse_json_tool_call(text: str):
-    """Fallback: try to extract a tool call from text that looks like JSON."""
+    """Fallback: extract a tool call from text containing nested JSON."""
     text = text.strip()
-    for m in re.finditer(r'\{[^{}]*\}', text, re.DOTALL):
-        block = m.group()
+    i = 0
+    while i < len(text):
+        if text[i] != '{':
+            i += 1
+            continue
+        depth = 1
+        j = i + 1
+        while j < len(text) and depth > 0:
+            if text[j] == '{':
+                depth += 1
+            elif text[j] == '}':
+                depth -= 1
+            j += 1
+        block = text[i:j]
+        i = j
         try:
             data = json.loads(block)
         except json.JSONDecodeError:
