@@ -6,17 +6,7 @@ import { useChat } from './hooks/useChat.js'
 import { forgetMemory } from './api/client.js'
 
 export default function App() {
-  const {
-    messages,
-    isLoading,
-    sendMessage,
-    doSummarize,
-    doWrite,
-    doRewrite,
-    doReport,
-    doListFiles,
-    clearChat,
-  } = useChat()
+  const { messages, isLoading, sendMessage, clearChat } = useChat()
 
   const handleSend = useCallback((text, fileContext) => {
     sendMessage(text, fileContext)
@@ -39,21 +29,8 @@ export default function App() {
       </div>
       <div className="floating-root">
         <Header className="floating-card header" onClear={clearChat} onForget={handleForget} />
-        <ChatView
-          className="floating-card chat-view"
-          messages={messages}
-          isLoading={isLoading}
-        />
-        <InputBar
-          className="floating-card input-bar"
-          onSend={handleSend}
-          isLoading={isLoading}
-          doSummarize={doSummarize}
-          doWrite={doWrite}
-          doRewrite={doRewrite}
-          doReport={doReport}
-          doListFiles={doListFiles}
-        />
+        <ChatView className="floating-card chat-view" messages={messages} isLoading={isLoading} />
+        <InputBar className="floating-card input-bar" onSend={handleSend} isLoading={isLoading} />
       </div>
     </>
   )

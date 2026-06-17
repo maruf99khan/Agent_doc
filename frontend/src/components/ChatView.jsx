@@ -15,11 +15,11 @@ export default function ChatView({
   const hasMessages = messages.length > 0
 
   const suggestions = [
-    'list my files',
-    'summarize the attached file',
-    'create a pdf report about web frameworks',
-    'read notes.txt and summarize it',
-    'create a docx file with a project overview',
+    'search the internet for latest AI news',
+    'summarize the file I uploaded',
+    'create a report about quantum computing',
+    'read my file and suggest improvements',
+    'save this conversation as a markdown file',
   ]
 
   return (

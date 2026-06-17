@@ -64,7 +64,7 @@ def _stream_response(async_gen):
     )
 
 
-# ── Chat API ──
+# ── Chat API (handles everything via AI tools) ──
 
 @app.post("/api/chat/stream")
 async def chat_endpoint(
@@ -85,88 +85,6 @@ async def chat_endpoint(
     memory.remember_fact(f"User asked: {message[:200]}")
 
     return _stream_response(chat_stream(full_message, history_data))
-
-
-# ── Job Endpoints ──
-
-@app.post("/api/jobs/summarize")
-async def job_summarize(filename: str = Form(...)):
-    try:
-        content = file_service.read_file_content(filename)
-    except FileNotFoundError as e:
-        return _stream_response(_single_error(str(e)))
-    return _stream_response(chat_stream(
-        f"Please summarize the following content:\n\n{content[:8000]}",
-        [],
-        "You are a summarization assistant. Provide a clear, concise summary."
-    ))
-
-
-@app.post("/api/jobs/write")
-async def job_write(filename: str = Form(...), content: str = Form(...)):
-    file_service.write_file_content(filename, content)
-    return {"status": "ok", "filename": filename, "url": f"/api/files/download/{filename}"}
-
-
-@app.post("/api/jobs/rewrite")
-async def job_rewrite(filename: str = Form(...), instructions: str = Form(default="")):
-    try:
-        original = file_service.read_file_content(filename)
-    except FileNotFoundError as e:
-        return _stream_response(_single_error(str(e)))
-    return _stream_response(chat_stream(
-        f"Original content of {filename}:\n\n{original[:6000]}\n\n"
-        f"Rewrite instructions: {instructions}\n\n"
-        f"Return ONLY the rewritten content, no extra text.",
-        [],
-        "You are a document rewriting assistant. Output only the rewritten document."
-    ))
-
-
-@app.post("/api/jobs/report")
-async def job_report(topic: str = Form(...), history: str = Form(default="")):
-    try:
-        history_data = json.loads(history) if isinstance(history, str) and history else []
-    except json.JSONDecodeError:
-        history_data = []
-
-    filename = topic.strip().replace(" ", "_")[:40] + ".md"
-    full_content = [""]
-
-    async def gen():
-        async for event in chat_stream(
-            f"Write a detailed report about: {topic}\n\n"
-            f"Format with markdown headings, bullet points, and sections.",
-            history_data,
-            "You are a report writer. Create comprehensive, well-structured documents."
-        ):
-            data = json.loads(event)
-            if data.get("type") == "text":
-                full_content[0] += data["content"]
-            yield event
-
-        text_content = full_content[0].strip()
-        if text_content:
-            try:
-                file_service.write_file_content(filename, text_content)
-                yield json.dumps({
-                    "type": "file_created",
-                    "filename": filename,
-                    "url": f"/api/files/download/{filename}",
-                })
-            except Exception as e:
-                yield json.dumps({"type": "error", "content": f"Failed to save report: {e}"})
-
-        yield json.dumps({"type": "done"})
-
-    return _stream_response(gen())
-
-
-def _single_error(msg):
-    async def gen():
-        yield json.dumps({"type": "error", "content": msg})
-        yield json.dumps({"type": "done"})
-    return gen()
 
 
 # ── File Endpoints ──

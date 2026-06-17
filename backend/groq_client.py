@@ -18,6 +18,52 @@ MODELS_GROQ = [
     "llama-3.1-8b-instant",
 ]
 
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the internet for current information on any topic",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_file",
+            "description": "Create or save a file with content. Use this when the user asks you to save something to a file, create a document, write code, etc.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string", "description": "Filename with extension (e.g. report.md, script.py)"},
+                    "content": {"type": "string", "description": "Full file content"},
+                },
+                "required": ["filename", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Read the content of a file from the workspace",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string", "description": "Filename to read"},
+                },
+                "required": ["filename"],
+            },
+        },
+    },
+]
+
 
 def _get_client():
     or_key = os.environ.get("OPENROUTER_API_KEY")
@@ -36,9 +82,7 @@ def _get_client():
             base_url="https://api.groq.com/openai/v1",
             api_key=gq_key,
         ), "groq"
-    raise RuntimeError(
-        "No API key found. Set OPENROUTER_API_KEY or GROQ_API_KEY."
-    )
+    raise RuntimeError("No API key found. Set OPENROUTER_API_KEY or GROQ_API_KEY.")
 
 
 def _get_model(provider):
@@ -52,8 +96,14 @@ def _get_model(provider):
 
 def _build_messages(message: str, history: list[dict], system_extra: str = "") -> list[dict]:
     system = (
-        "You are Gonzo, a helpful conversational AI. You respond naturally and helpfully. "
-        "Format responses in Markdown."
+        "You are Gonzo, a helpful AI assistant with access to tools:\n"
+        "- **web_search(query)** — search the internet for current info\n"
+        "- **create_file(filename, content)** — save content to a file (user can download it)\n"
+        "- **read_file(filename)** — read a file from the workspace\n\n"
+        "When the user asks you to search something, summarize a file, "
+        "create/modify a document, or analyze content — use the appropriate tool. "
+        "Always use create_file when the user asks you to save or create something. "
+        "Format your responses in Markdown."
     )
     if system_extra:
         system += f"\n\n{system_extra}"
@@ -63,6 +113,51 @@ def _build_messages(message: str, history: list[dict], system_extra: str = "") -
         messages.append({"role": role, "content": h.get("content", "")})
     messages.append({"role": "user", "content": message})
     return messages
+
+
+def _execute_tool(tool_call) -> tuple[str, dict | None]:
+    func_name = tool_call.function.name
+    try:
+        args = json.loads(tool_call.function.arguments)
+    except json.JSONDecodeError:
+        return f"Error: invalid arguments for {func_name}", None
+
+    if func_name == "web_search":
+        try:
+            from duckduckgo_search import DDGS
+            ddgs = DDGS()
+            results = list(ddgs.text(args["query"], max_results=5))
+            if not results:
+                return "No search results found.", None
+            out = []
+            for r in results:
+                title = r.get("title", "")
+                body = r.get("body", "")
+                href = r.get("href", "")
+                out.append(f"- **{title}**: {body}\n  {href}")
+            return "\n\n".join(out), None
+        except ImportError:
+            return "Web search unavailable (package not installed).", None
+        except Exception as e:
+            return f"Search failed: {e}", None
+
+    if func_name == "create_file":
+        from file_service import write_file_content
+        filename = args["filename"]
+        content = args["content"]
+        write_file_content(filename, content)
+        return f"File saved: {filename}", {"filename": filename, "url": f"/api/files/download/{filename}"}
+
+    if func_name == "read_file":
+        from file_service import read_file_content
+        filename = args["filename"]
+        try:
+            content = read_file_content(filename)
+            return f"--- {filename} ---\n{content}", None
+        except FileNotFoundError:
+            return f"Error: File '{filename}' not found in workspace.", None
+
+    return f"Unknown tool: {func_name}", None
 
 
 async def chat_stream(
@@ -78,20 +173,43 @@ async def chat_stream(
 
     model = _get_model(provider)
     messages = _build_messages(message, history, system_extra)
+    created_files = []
 
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=4096,
-            stream=True,
-        )
+        for _ in range(5):
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=4096,
+                stream=False,
+                tools=TOOLS,
+            )
 
-        for chunk in response:
-            delta = chunk.choices[0].delta if chunk.choices else None
-            if delta and delta.content:
-                yield json.dumps({"type": "text", "content": delta.content})
+            choice = response.choices[0]
+            msg = choice.message
+            finish = choice.finish_reason
+
+            if msg.content:
+                yield json.dumps({"type": "text", "content": msg.content})
+
+            if finish == "tool_calls" and msg.tool_calls:
+                messages.append(msg)
+                for tc in msg.tool_calls:
+                    result, file_info = _execute_tool(tc)
+                    if file_info:
+                        created_files.append(file_info)
+                    logger.info(f"Tool {tc.function.name}: {result[:80]}")
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result,
+                    })
+            else:
+                for f in created_files:
+                    yield json.dumps({"type": "file_created", **f})
+                yield json.dumps({"type": "done"})
+                return
 
         yield json.dumps({"type": "done"})
 
@@ -99,7 +217,7 @@ async def chat_stream(
         logger.error(f"AI chat failed: {e}", exc_info=True)
         err = str(e).lower()
         if "rate_limit" in err:
-            yield json.dumps({"type": "error", "content": "Rate limited. Wait a moment and retry."})
+            yield json.dumps({"type": "error", "content": "Rate limited. Wait and retry."})
         elif "insufficient_quota" in err:
             yield json.dumps({"type": "error", "content": "API quota exceeded or key invalid."})
         else:
