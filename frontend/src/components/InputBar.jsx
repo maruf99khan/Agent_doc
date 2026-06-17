@@ -30,12 +30,16 @@ export default function InputBar({ onSend, isLoading, className }) {
       try {
         const result = await uploadFile(file)
         setAttachedFiles(prev => [...prev, { name: file.name, id: result.file_id }])
-        const ext = file.name.split('.').pop()?.toLowerCase()
-        if (['txt', 'md', 'py', 'js', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml'].includes(ext)) {
-          const text = await file.text()
-          setFileContexts(prev => [...prev, `--- File: ${file.name} ---\n${text}`])
+        if (result.extracted_text) {
+          setFileContexts(prev => [...prev, `--- File: ${file.name} ---\n${result.extracted_text}`])
         } else {
-          setFileContexts(prev => [...prev, `[File attached: ${file.name}]`])
+          const ext = file.name.split('.').pop()?.toLowerCase()
+          if (['txt', 'md', 'py', 'js', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml'].includes(ext)) {
+            const text = await file.text()
+            setFileContexts(prev => [...prev, `--- File: ${file.name} ---\n${text}`])
+          } else {
+            setFileContexts(prev => [...prev, `[File attached: ${file.name}]`])
+          }
         }
       } catch (err) {
         console.error('Upload failed:', err)

@@ -1,10 +1,11 @@
 import os
-import shutil
 import uuid
 from pathlib import Path
 
 WORKSPACE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'workspace')
 os.makedirs(WORKSPACE, exist_ok=True)
+
+TEXT_EXTS = {'txt', 'md', 'py', 'js', 'ts', 'jsx', 'tsx', 'json', 'csv', 'html', 'css', 'xml', 'yaml', 'yml', 'ini', 'cfg', 'log', 'sh', 'bat', 'ps1', 'env', 'rst', 'tex', 'c', 'cpp', 'h', 'java', 'rs', 'go', 'rb', 'php', 'swift', 'kt', 'scala', 'sql', 'r', 'lua'}
 
 
 def _safe_path(filename: str) -> Path:
@@ -14,6 +15,49 @@ def _safe_path(filename: str) -> Path:
     return Path(abs_path)
 
 
+def _extract_text_from_pdf(path: Path) -> str:
+    try:
+        import PyPDF2
+        text = ""
+        with open(path, 'rb') as f:
+            reader = PyPDF2.PdfReader(f)
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+        return text.strip()
+    except ImportError:
+        return "[PDF text extraction requires PyPDF2]"
+    except Exception as e:
+        return f"[PDF extraction error: {e}]"
+
+
+def _extract_text_from_docx(path: Path) -> str:
+    try:
+        from docx import Document
+        doc = Document(str(path))
+        return "\n".join(p.text for p in doc.paragraphs).strip()
+    except ImportError:
+        return "[DOCX text extraction requires python-docx]"
+    except Exception as e:
+        return f"[DOCX extraction error: {e}]"
+
+
+def extract_text(file_path: str) -> str | None:
+    path = _safe_path(file_path)
+    if not path.exists():
+        return None
+    ext = path.suffix.lower().lstrip('.')
+    if ext == 'pdf':
+        return _extract_text_from_pdf(path)
+    if ext == 'docx':
+        return _extract_text_from_docx(path)
+    if ext in TEXT_EXTS:
+        try:
+            return path.read_text(encoding='utf-8').strip()
+        except Exception:
+            return None
+    return None
+
+
 def save_upload(file_bytes: bytes, original_name: str) -> dict:
     safe_name = os.path.basename(original_name)
     if not safe_name:
@@ -21,13 +65,17 @@ def save_upload(file_bytes: bytes, original_name: str) -> dict:
     path = _safe_path(safe_name)
     path.write_bytes(file_bytes)
     size = len(file_bytes)
-    return {
+    text = extract_text(safe_name)
+    result = {
         "file_id": safe_name,
         "name": safe_name,
         "saved_as": safe_name,
         "size": size,
         "path": str(path),
     }
+    if text:
+        result["extracted_text"] = text
+    return result
 
 
 def get_file_path(filename: str) -> Path | None:

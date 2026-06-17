@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function Header({ onClear, onForget, className }) {
+export default function Header({ onClear, className }) {
   return (
     <header className={`header ${className || ''}`}>
       <div className="header-left">
@@ -13,9 +13,6 @@ export default function Header({ onClear, onForget, className }) {
       <div className="header-actions">
         <button className="header-btn" onClick={onClear} title="Clear conversation">
           clear
-        </button>
-        <button className="header-btn" onClick={onForget} title="Forget memory">
-          forget
         </button>
       </div>
     </header>

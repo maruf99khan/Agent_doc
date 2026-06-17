@@ -3,7 +3,6 @@ import Header from './components/Header.jsx'
 import ChatView from './components/ChatView.jsx'
 import InputBar from './components/InputBar.jsx'
 import { useChat } from './hooks/useChat.js'
-import { forgetMemory } from './api/client.js'
 
 export default function App() {
   const { messages, isLoading, sendMessage, clearChat } = useChat()
@@ -11,11 +10,6 @@ export default function App() {
   const handleSend = useCallback((text, fileContext) => {
     sendMessage(text, fileContext)
   }, [sendMessage])
-
-  const handleForget = useCallback(async () => {
-    await forgetMemory()
-    clearChat()
-  }, [clearChat])
 
   return (
     <>
@@ -28,7 +22,7 @@ export default function App() {
         <div className="shape shape-5" />
       </div>
       <div className="floating-root">
-        <Header className="floating-card header" onClear={clearChat} onForget={handleForget} />
+        <Header className="floating-card header" onClear={clearChat} />
         <ChatView className="floating-card chat-view" messages={messages} isLoading={isLoading} />
         <InputBar className="floating-card input-bar" onSend={handleSend} isLoading={isLoading} />
       </div>
