@@ -3,6 +3,7 @@ import Header from './components/Header.jsx'
 import ChatView from './components/ChatView.jsx'
 import InputBar from './components/InputBar.jsx'
 import AgentTabs from './components/AgentTabs.jsx'
+import FileBrowser from './components/FileBrowser.jsx'
 import { useChat } from './hooks/useChat.js'
 
 export default function App() {
@@ -10,7 +11,7 @@ export default function App() {
   const [waking, setWaking] = useState(true)
   const [results, setResults] = useState({})
   const [docText, setDocText] = useState('')
-  const [agentMode, setAgentMode] = useState(false)
+  const [viewMode, setViewMode] = useState('chat')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -30,11 +31,11 @@ export default function App() {
 
   const handleDocumentText = useCallback((text) => {
     setDocText(text)
-    setAgentMode(true)
+    setViewMode('chat')
   }, [])
 
-  const toggleAgentMode = useCallback(() => {
-    setAgentMode(prev => !prev)
+  const toggleViewMode = useCallback(() => {
+    setViewMode(prev => prev === 'chat' ? 'file' : 'chat')
   }, [])
 
   const clearDocument = useCallback(() => {
@@ -100,19 +101,22 @@ export default function App() {
             <button className="wake-dismiss" onClick={() => setWaking(false)}>x</button>
           </div>
         )}
-        <Header className="floating-card header" onClear={clearChat} agentMode={agentMode} onToggleAgent={toggleAgentMode} />
-        <AgentTabs
-          docText={docText}
-          onDocText={handleDocumentText}
-          onClearDoc={clearDocument}
-          forceShow={agentMode}
-          results={results}
-          onAgentAction={handleAgentAction}
-          isLoading={isLoading}
-        >
-          <ChatView className="chat-view" messages={messages} isLoading={isLoading} />
-          <InputBar className="input-bar" onSend={handleSend} onDocumentText={handleDocumentText} isLoading={isLoading} />
-        </AgentTabs>
+        <Header className="floating-card header" onClear={clearChat} viewMode={viewMode} onToggleView={toggleViewMode} />
+        {viewMode === 'file' ? (
+          <FileBrowser />
+        ) : (
+          <AgentTabs
+            docText={docText}
+            onDocText={handleDocumentText}
+            onClearDoc={clearDocument}
+            results={results}
+            onAgentAction={handleAgentAction}
+            isLoading={isLoading}
+          >
+            <ChatView className="chat-view" messages={messages} isLoading={isLoading} />
+            <InputBar className="input-bar" onSend={handleSend} onDocumentText={handleDocumentText} isLoading={isLoading} />
+          </AgentTabs>
+        )}
       </div>
     </>
   )
