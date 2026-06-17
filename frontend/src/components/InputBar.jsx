@@ -67,7 +67,7 @@ export default function InputBar({ onSend, isLoading, className }) {
       {attachedFiles.length > 0 && (
         <div className="file-attachments">
           {attachedFiles.map((f, i) => (
-            <span key={i} className="file-chip">
+            <span key={i} className="file-chip" data-ext={f.name.split('.').pop().toLowerCase()}>
               📎 {f.name}
               <span className="chip-remove" onClick={() => removeFile(i)}>x</span>
             </span>

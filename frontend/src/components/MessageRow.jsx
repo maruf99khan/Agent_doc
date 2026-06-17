@@ -4,8 +4,9 @@ import remarkGfm from 'remark-gfm'
 
 function DownloadBadge({ file }) {
   if (!file || !file.url) return null
+  const ext = file.filename ? file.filename.split('.').pop().toLowerCase() : ''
   return (
-    <a href={file.url} className="download-badge" download>
+    <a href={file.url} className="download-badge" data-ext={ext} download>
       <span className="download-icon">↓</span>
       <span className="download-name">{file.filename}</span>
       <span className="download-hint">download</span>
