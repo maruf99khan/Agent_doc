@@ -163,10 +163,18 @@ def _execute_tool(tool_call) -> tuple[str, dict | None]:
             return f"Search failed: {e}", None
 
     if func_name == "create_file":
-        from file_service import write_file_content
         filename = args["filename"]
         content = args["content"]
-        write_file_content(filename, content)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext == ".pdf":
+            from file_service import create_pdf
+            create_pdf(content, filename)
+        elif ext == ".docx":
+            from file_service import create_docx
+            create_docx(content, filename)
+        else:
+            from file_service import write_file_content
+            write_file_content(filename, content)
         return f"File saved: {filename}", {"filename": filename, "url": f"/api/files/download/{filename}"}
 
     if func_name == "read_file":
